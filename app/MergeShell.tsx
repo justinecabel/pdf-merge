@@ -231,6 +231,7 @@ export default function MergeShell() {
   const [isPanning, setIsPanning] = useState(false);
   const [contextMenu, setContextMenu] = useState<CanvasContextMenu | null>(null);
   const [reviewPage, setReviewPage] = useState(0);
+  const [reviewCopyIndex, setReviewCopyIndex] = useState(0);
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
   const [mobilePropertiesOpen, setMobilePropertiesOpen] = useState(false);
   const [mobileLayersOpen, setMobileLayersOpen] = useState(false);
@@ -253,6 +254,8 @@ export default function MergeShell() {
   const currentFields = useMemo(() => fields.filter((field) => field.pageIndex === currentPage), [fields, currentPage]);
   const hasSession = Boolean(pdfDoc);
   const view = pathname.startsWith('/data') ? 'data' : pathname.startsWith('/review') ? 'review' : 'template';
+  const activeReviewCopyIndex = Math.min(reviewCopyIndex, Math.max(rows.length - 1, 0));
+  const activeReviewRow = rows[activeReviewCopyIndex] ?? null;
 
   useEffect(() => { document.title = view === 'template' ? 'Template' : view === 'data' ? 'Data' : 'Review'; }, [view]);
   useEffect(() => { zoomRef.current = zoom; }, [zoom]);
@@ -405,6 +408,7 @@ export default function MergeShell() {
       setGeometries(pageGeometries);
       setCurrentPage(0);
       setReviewPage(0);
+      setReviewCopyIndex(0);
       const isCompactViewport = typeof window !== 'undefined' && window.matchMedia('(max-width: 860px)').matches;
       setZoom(isCompactViewport ? 0.65 : 1);
       setFields([]);
@@ -810,6 +814,7 @@ export default function MergeShell() {
 
   const deleteRow = (id: string) => {
     setExportMenuOpen(false);
+    setReviewCopyIndex(0);
     setRows((current) => current.filter((row) => row.id !== id));
   };
 
@@ -817,7 +822,18 @@ export default function MergeShell() {
     if (!window.confirm('Discard this PDF, all fields, and every row?')) return;
     await pdfDoc?.destroy();
     setPdfDoc(null); setPdfBytes(null); setGeometries([]); setCurrentPage(0);
-    setFields([]); setRows([]); setCustomFonts([]); setDeviceFontOptions([]); deviceFontSourcesRef.current.clear(); importedDeviceFontIdsRef.current.clear(); setSelectedId(null); setSelectedIds([]); setPlacementMode(null); setHandMode(false); setContextMenu(null); setReviewPage(0); setMobilePropertiesOpen(false); setMobileLayersOpen(false); setError(''); setProgress(0);
+    setFields([]); setRows([]); setCustomFonts([]); setDeviceFontOptions([]); deviceFontSourcesRef.current.clear(); importedDeviceFontIdsRef.current.clear(); setSelectedId(null); setSelectedIds([]); setPlacementMode(null); setHandMode(false); setContextMenu(null); setReviewPage(0); setReviewCopyIndex(0); setMobilePropertiesOpen(false); setMobileLayersOpen(false); setError(''); setProgress(0);
+  };
+
+  const moveReviewPage = (direction: -1 | 1) => {
+    if (!pdfDoc || !rows.length) return;
+    if (direction === 1) {
+      if (reviewPage < pdfDoc.numPages - 1) setReviewPage((page) => page + 1);
+      else if (activeReviewCopyIndex < rows.length - 1) { setReviewCopyIndex((copy) => copy + 1); setReviewPage(0); }
+      return;
+    }
+    if (reviewPage > 0) setReviewPage((page) => page - 1);
+    else if (activeReviewCopyIndex > 0) { setReviewCopyIndex((copy) => copy - 1); setReviewPage(pdfDoc.numPages - 1); }
   };
 
   const createOutput = async (mode: 'exporting' | 'printing', separate = false) => {
@@ -1066,10 +1082,10 @@ export default function MergeShell() {
         {!pdfDoc || !fields.length ? emptyWorkflow('Nothing to review yet', 'Complete the Template and Data steps before exporting.') : <>
           <section className="review-page-panel" aria-label="Page preview">
             <div className="review-page-toolbar">
-              <div><p className="eyebrow">Page preview</p><h2>Copy 1 · Page {reviewPage + 1} of {pdfDoc.numPages}</h2></div>
-              <div><button className="button" aria-label="Previous page" onClick={() => setReviewPage((page) => Math.max(0, page - 1))} disabled={reviewPage === 0}><ArrowLeft size={14} /> Previous</button><button className="button" aria-label="Next page" onClick={() => setReviewPage((page) => Math.min(pdfDoc.numPages - 1, page + 1))} disabled={reviewPage >= pdfDoc.numPages - 1}>Next <ArrowRight size={14} /></button></div>
+              <div><p className="eyebrow">Page preview</p><h2>Copy {activeReviewCopyIndex + 1} of {rows.length} · Page {reviewPage + 1} of {pdfDoc.numPages}</h2></div>
+              <div><button className="button" aria-label="Previous preview page" onClick={() => moveReviewPage(-1)} disabled={activeReviewCopyIndex === 0 && reviewPage === 0}><ArrowLeft size={14} /> Previous</button><button className="button" aria-label="Next preview page" onClick={() => moveReviewPage(1)} disabled={activeReviewCopyIndex === rows.length - 1 && reviewPage >= pdfDoc.numPages - 1}>Next <ArrowRight size={14} /></button></div>
             </div>
-            <div className="review-page-canvas"><ReviewPagePreview document={pdfDoc} pageIndex={reviewPage} fields={fields} row={rows[0] ?? null} customFonts={customFonts} /></div>
+            <div className="review-page-canvas"><ReviewPagePreview document={pdfDoc} pageIndex={reviewPage} fields={fields} row={activeReviewRow} customFonts={customFonts} /></div>
           </section>
         </>}
         <div className="workflow-bottom-dock"><div className="workflow-bottom-dock-content"><Link href="/data" className="button"><ArrowLeft size={14} /> Merge data</Link>{pdfDoc && fields.length && <div className="review-bottom-actions"><button className="button" onClick={() => void createOutput('printing')} disabled={!rows.length || Boolean(busy)}><Printer size={14} /> Print</button>{rows.length > 1 ? <div className="export-combo"><div className="export-combo-buttons"><button className="button button-dark" onClick={() => void createOutput('exporting')} disabled={Boolean(busy)}><Download size={14} /> Export PDF</button><button className="button button-dark export-options-trigger" aria-label="Export options" aria-expanded={exportMenuOpen} onClick={() => setExportMenuOpen((open) => !open)} disabled={Boolean(busy)}><ChevronDown size={14} /></button></div>{exportMenuOpen && <div className="export-menu" role="menu"><button role="menuitem" onClick={() => { setExportMenuOpen(false); void createOutput('exporting', true); }} disabled={Boolean(busy)}>One PDF per row (.zip)</button></div>}</div> : <button className="button button-dark" onClick={() => void createOutput('exporting')} disabled={!rows.length || Boolean(busy)}><Download size={14} /> Export PDF</button>}</div>}</div></div>
