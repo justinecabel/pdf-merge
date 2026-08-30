@@ -187,14 +187,18 @@ export async function generateMergedPdf(
   return output.save({ useObjectStreams: true });
 }
 
-export function downloadPdf(bytes: Uint8Array, filename: string) {
-  const blob = new Blob([bytes as BlobPart], { type: 'application/pdf' });
+export function downloadFile(bytes: Uint8Array, filename: string, type: string) {
+  const blob = new Blob([bytes as BlobPart], { type });
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement('a');
   anchor.href = url;
   anchor.download = filename;
   anchor.click();
   window.setTimeout(() => URL.revokeObjectURL(url), 30_000);
+}
+
+export function downloadPdf(bytes: Uint8Array, filename: string) {
+  downloadFile(bytes, filename, 'application/pdf');
 }
 
 export function openPrintablePdf(bytes: Uint8Array, target?: Window | null) {

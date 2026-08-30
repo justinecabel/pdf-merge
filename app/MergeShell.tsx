@@ -3,7 +3,7 @@
 import type { PDFDocumentProxy } from 'pdfjs-dist';
 import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import {
-  ArrowLeft, ArrowRight, Check, Copy, Download, FileText, ImageIcon,
+  ArrowLeft, ArrowRight, Check, ChevronDown, Copy, Download, FileText, ImageIcon,
   GripVertical, Hand, Layers3, Minus, Plus, Printer, RotateCcw, SlidersHorizontal, Trash2, Type, Upload, X,
 } from 'lucide-react';
 import Link from 'next/link';
@@ -231,6 +231,7 @@ export default function MergeShell() {
   const [isPanning, setIsPanning] = useState(false);
   const [contextMenu, setContextMenu] = useState<CanvasContextMenu | null>(null);
   const [reviewPage, setReviewPage] = useState(0);
+  const [exportMenuOpen, setExportMenuOpen] = useState(false);
   const [mobilePropertiesOpen, setMobilePropertiesOpen] = useState(false);
   const [mobileLayersOpen, setMobileLayersOpen] = useState(false);
   const [layerDropTarget, setLayerDropTarget] = useState<string | null>(null);
@@ -748,9 +749,7 @@ export default function MergeShell() {
       if (isButton || event.altKey || event.ctrlKey || event.metaKey) return;
       event.preventDefault();
       const nextRow = rowIndex + (event.shiftKey ? -1 : 1);
-      // Rows are created deliberately with “Add row”; Enter only moves through
-      // rows that already exist, so a single PDF remains a single output by default.
-      moveTo(nextRow, fieldIndex);
+      moveTo(nextRow, fieldIndex, !event.shiftKey);
       return;
     }
     if (event.key === 'Tab') {
@@ -796,6 +795,11 @@ export default function MergeShell() {
     return next;
   });
 
+  const deleteRow = (id: string) => {
+    setExportMenuOpen(false);
+    setRows((current) => current.filter((row) => row.id !== id));
+  };
+
   const reset = async () => {
     if (!window.confirm('Discard this PDF, all fields, and every row?')) return;
     await pdfDoc?.destroy();
@@ -803,7 +807,7 @@ export default function MergeShell() {
     setFields([]); setRows([]); setCustomFonts([]); setDeviceFontOptions([]); deviceFontSourcesRef.current.clear(); importedDeviceFontIdsRef.current.clear(); setSelectedId(null); setSelectedIds([]); setPlacementMode(null); setHandMode(false); setContextMenu(null); setReviewPage(0); setMobilePropertiesOpen(false); setMobileLayersOpen(false); setError(''); setProgress(0);
   };
 
-  const createOutput = async (mode: 'exporting' | 'printing') => {
+  const createOutput = async (mode: 'exporting' | 'printing', separate = false) => {
     if (!pdfBytes || !fields.length || !rows.length) return;
     const printTarget = mode === 'printing' ? window.open('about:blank', '_blank') : null;
     if (mode === 'printing' && !printTarget) {
@@ -812,11 +816,24 @@ export default function MergeShell() {
     }
     setBusy(mode); setProgress(0); setError('');
     try {
-      const { downloadPdf, generateMergedPdf, openPrintablePdf } = await import('./lib/export-pdf');
+      const { downloadFile, downloadPdf, generateMergedPdf, openPrintablePdf } = await import('./lib/export-pdf');
       const renderedTemplatePages = await renderTemplatePages();
+      const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+      if (separate) {
+        const JSZip = (await import('jszip')).default;
+        const archive = new JSZip();
+        for (const [rowIndex, row] of rows.entries()) {
+          const bytes = await generateMergedPdf(pdfBytes, fields, [row], geometries, ({ percent }) => {
+            setProgress(Math.round(((rowIndex + percent / 100) / rows.length) * 100));
+          }, customFonts, renderedTemplatePages);
+          archive.file(`mail-merge-${String(rowIndex + 1).padStart(3, '0')}.pdf`, bytes);
+        }
+        const zipBytes = await archive.generateAsync({ type: 'uint8array' }, (metadata) => setProgress(Math.round(metadata.percent)));
+        downloadFile(zipBytes, `mail-merge-${stamp}.zip`, 'application/zip');
+        return;
+      }
       const bytes = await generateMergedPdf(pdfBytes, fields, rows, geometries, ({ percent }) => setProgress(percent), customFonts, renderedTemplatePages);
       if (mode === 'exporting') {
-        const stamp = new Date().toISOString().replace(/[:.]/g, '-');
         downloadPdf(bytes, `mail-merge-${stamp}.pdf`);
       } else openPrintablePdf(bytes, printTarget);
     } catch (caught) {
@@ -885,7 +902,7 @@ export default function MergeShell() {
               {fields.map((field, fieldIndex) => <td key={field.id} data-merge-cell data-row-id={row.id} data-field-id={field.id} onKeyDown={(event) => handleDataCellKeyDown(event, rowIndex, fieldIndex)}>{field.type === 'text'
                 ? <textarea rows={1} aria-label={`${field.name}, row ${rowIndex + 1}`} value={typeof row.values[field.id] === 'string' ? row.values[field.id] as string : ''} placeholder="Blank" onChange={(event) => updateCell(row.id, field.id, event.target.value)} />
                 : <ImageCell value={row.values[field.id] ?? null} onChange={(value) => updateCell(row.id, field.id, value)} />}</td>)}
-              <td className="row-actions"><button className="table-action" title="Duplicate row" aria-label={`Duplicate row ${rowIndex + 1}`} onClick={() => duplicateRow(row.id)}><Copy size={13} /></button><button className="table-action" title="Delete row" aria-label={`Delete row ${rowIndex + 1}`} onClick={() => setRows((current) => current.filter((item) => item.id !== row.id))}><Trash2 size={13} /></button></td>
+              <td className="row-actions"><button className="table-action" title="Duplicate row" aria-label={`Duplicate row ${rowIndex + 1}`} onClick={() => duplicateRow(row.id)}><Copy size={13} /></button><button className="table-action" title="Delete row" aria-label={`Delete row ${rowIndex + 1}`} onClick={() => deleteRow(row.id)}><Trash2 size={13} /></button></td>
             </tr>)}</tbody>
           </table>
         </div>
@@ -1037,7 +1054,7 @@ export default function MergeShell() {
             <div className="review-page-canvas"><ReviewPagePreview document={pdfDoc} pageIndex={reviewPage} fields={fields} row={rows[0] ?? null} customFonts={customFonts} /></div>
           </section>
         </>}
-        <div className="workflow-bottom-dock"><div className="workflow-bottom-dock-content"><Link href="/data" className="button"><ArrowLeft size={14} /> Merge data</Link>{pdfDoc && fields.length && <div className="review-bottom-actions"><button className="button" onClick={() => void createOutput('printing')} disabled={!rows.length || Boolean(busy)}><Printer size={14} /> Print</button><button className="button button-dark" onClick={() => void createOutput('exporting')} disabled={!rows.length || Boolean(busy)}><Download size={14} /> Export PDF</button></div>}</div></div>
+        <div className="workflow-bottom-dock"><div className="workflow-bottom-dock-content"><Link href="/data" className="button"><ArrowLeft size={14} /> Merge data</Link>{pdfDoc && fields.length && <div className="review-bottom-actions"><button className="button" onClick={() => void createOutput('printing')} disabled={!rows.length || Boolean(busy)}><Printer size={14} /> Print</button>{rows.length > 1 ? <div className="export-combo"><div className="export-combo-buttons"><button className="button button-dark" onClick={() => void createOutput('exporting')} disabled={Boolean(busy)}><Download size={14} /> Export PDF</button><button className="button button-dark export-options-trigger" aria-label="Export options" aria-expanded={exportMenuOpen} onClick={() => setExportMenuOpen((open) => !open)} disabled={Boolean(busy)}><ChevronDown size={14} /></button></div>{exportMenuOpen && <div className="export-menu" role="menu"><button role="menuitem" onClick={() => { setExportMenuOpen(false); void createOutput('exporting', true); }} disabled={Boolean(busy)}>One PDF per row (.zip)</button></div>}</div> : <button className="button button-dark" onClick={() => void createOutput('exporting')} disabled={!rows.length || Boolean(busy)}><Download size={14} /> Export PDF</button>}</div>}</div></div>
       </section>}
 
       {busy && <div className="busy-overlay" role="status" aria-live="polite"><div className="busy-card"><span className="busy-mark">{busy === 'loading' ? <FileText size={18} /> : <Check size={18} />}</span><div><strong>{busy === 'loading' ? 'Opening PDF' : busy === 'printing' ? 'Preparing print copy' : 'Creating PDF'}</strong><p>{busy === 'loading' ? 'Reading pages locally…' : `${progress}% complete`}</p></div>{busy !== 'loading' && <div className="progress-track"><span style={{ width: `${progress}%` }} /></div>}</div></div>}
