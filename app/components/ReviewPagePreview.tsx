@@ -11,10 +11,9 @@ type Props = {
   fields: TemplateField[];
   row: MergeRow | null;
   customFonts: CustomFont[];
-  enhancedPageDataUrl?: string;
 };
 
-export function ReviewPagePreview({ document, pageIndex, fields, row, customFonts, enhancedPageDataUrl }: Props) {
+export function ReviewPagePreview({ document, pageIndex, fields, row, customFonts }: Props) {
   const [loadedPage, setLoadedPage] = useState<{ index: number; page: PDFPageProxy } | null>(null);
   const safePageIndex = Math.min(Math.max(pageIndex, 0), document.numPages - 1);
 
@@ -37,7 +36,6 @@ export function ReviewPagePreview({ document, pageIndex, fields, row, customFont
     onChange={() => undefined}
     onDelete={() => undefined}
     onFieldContextMenu={() => undefined}
-    enhancedPageDataUrl={enhancedPageDataUrl}
     interactive={false}
   />;
 }

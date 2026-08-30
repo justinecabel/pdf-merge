@@ -21,7 +21,6 @@ type Props = {
   onFieldContextMenu: (fieldId: string, position: { x: number; y: number }) => void;
   onPlace?: (type: 'text' | 'image', point: { x: number; y: number }) => void;
   onNudge?: (fieldId: string, dx: number, dy: number) => void;
-  enhancedPageDataUrl?: string;
   interactive?: boolean;
 };
 
@@ -77,7 +76,7 @@ function PreparedImagePreview({ dataUrl, fit, opacity, backgroundRemoval, enhanc
   return <img className={`field-image-preview ${fit}`} src={previewUrl} alt="" style={{ opacity }} />;
 }
 
-export function PdfCanvas({ page, zoom, fields, row, customFonts, selectedIds, placementMode = null, onSelect, onChange, onDelete, onFieldContextMenu, onPlace, onNudge, enhancedPageDataUrl, interactive = true }: Props) {
+export function PdfCanvas({ page, zoom, fields, row, customFonts, selectedIds, placementMode = null, onSelect, onChange, onDelete, onFieldContextMenu, onPlace, onNudge, interactive = true }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
   const viewport = useMemo(() => page ? page.getViewport({ scale: zoom }) : { width: 0, height: 0 }, [page, zoom]);
@@ -86,19 +85,6 @@ export function PdfCanvas({ page, zoom, fields, row, customFonts, selectedIds, p
     if (!page || !canvasRef.current) return;
     const canvas = canvasRef.current;
     let cancelled = false;
-    if (enhancedPageDataUrl) {
-      const image = new Image();
-      image.onload = () => {
-        if (cancelled || !canvas.isConnected) return;
-        canvas.width = image.naturalWidth;
-        canvas.height = image.naturalHeight;
-        canvas.style.width = `${viewport.width}px`;
-        canvas.style.height = `${viewport.height}px`;
-        canvas.getContext('2d')?.drawImage(image, 0, 0);
-      };
-      image.src = enhancedPageDataUrl;
-      return () => { cancelled = true; };
-    }
     const pixelRatio = Math.min(typeof window === 'undefined' ? 1 : window.devicePixelRatio || 1, 2);
     const renderViewport = page.getViewport({ scale: zoom * pixelRatio });
     const renderCanvas = document.createElement('canvas');
@@ -116,7 +102,7 @@ export function PdfCanvas({ page, zoom, fields, row, customFonts, selectedIds, p
       canvas.getContext('2d')?.drawImage(renderCanvas, 0, 0);
     }).catch(() => undefined);
     return () => { cancelled = true; task.cancel(); };
-  }, [enhancedPageDataUrl, page, viewport.height, viewport.width, zoom]);
+  }, [page, viewport.height, viewport.width, zoom]);
 
   const updateRect = (id: string, rect: NormalizedRect) => onChange(id, { rect } as Partial<TemplateField>);
 

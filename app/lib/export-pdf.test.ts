@@ -1,7 +1,6 @@
 import { PDFDocument } from 'pdf-lib';
 import { beforeAll, describe, expect, it } from 'vitest';
-import JSZip from 'jszip';
-import { fitText, generateMergedPdf, generateSeparatePdfZip } from './export-pdf';
+import { fitText, generateMergedPdf } from './export-pdf';
 import type { CustomFont, MergeRow, PageGeometry, TemplateField } from '../types';
 import { readFile, writeFile } from 'node:fs/promises';
 
@@ -30,22 +29,6 @@ describe('PDF export', () => {
     const outputBytes = await generateMergedPdf(sourceBytes, [], rows, geometries);
     const output = await PDFDocument.load(outputBytes);
     expect(output.getPageCount()).toBe(15);
-  });
-
-  it('creates one complete PDF per row in a numbered ZIP archive', async () => {
-    const source = await PDFDocument.create();
-    source.addPage([200, 300]);
-    source.addPage([200, 300]);
-    const rows: MergeRow[] = [{ id: 'row-1', values: {} }, { id: 'row-2', values: {} }];
-    const geometries: PageGeometry[] = Array.from({ length: 2 }, () => ({ width: 200, height: 300, transform: [1, 0, 0, -1, 0, 300] }));
-    const archiveBytes = await generateSeparatePdfZip(await source.save(), [], rows, geometries);
-    const archive = await JSZip.loadAsync(archiveBytes);
-    expect(Object.keys(archive.files).sort()).toEqual(['copy-001.pdf', 'copy-002.pdf']);
-    await Promise.all(['copy-001.pdf', 'copy-002.pdf'].map(async (name) => {
-      const bytes = await archive.file(name)?.async('uint8array');
-      expect(bytes).toBeTruthy();
-      expect((await PDFDocument.load(bytes!)).getPageCount()).toBe(2);
-    }));
   });
 
   it('draws personalized text and PNG content without changing source-page order', async () => {

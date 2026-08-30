@@ -3,8 +3,8 @@
 import type { PDFDocumentProxy } from 'pdfjs-dist';
 import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import {
-  ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Check, Copy, Download, FileText, ImageIcon,
-  GripVertical, Hand, Layers3, ListOrdered, Minus, Plus, Printer, RotateCcw, SlidersHorizontal, Sparkles, Trash2, Type, Upload, X,
+  ArrowLeft, ArrowRight, Check, Copy, Download, FileText, ImageIcon,
+  GripVertical, Hand, Layers3, Minus, Plus, Printer, RotateCcw, SlidersHorizontal, Trash2, Type, Upload, X,
 } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -204,8 +204,6 @@ export default function MergeShell() {
   const [pdfDoc, setPdfDoc] = useState<PDFDocumentProxy | null>(null);
   const [pdfBytes, setPdfBytes] = useState<Uint8Array | null>(null);
   const [geometries, setGeometries] = useState<PageGeometry[]>([]);
-  const [enhancedPageImages, setEnhancedPageImages] = useState<Record<number, string>>({});
-  const [enhancingPdf, setEnhancingPdf] = useState(false);
   const [currentPage, setCurrentPage] = useState(0);
   const [zoom, setZoom] = useState(1);
   const [fields, setFields] = useState<TemplateField[]>([]);
@@ -219,8 +217,6 @@ export default function MergeShell() {
   const [altHeld, setAltHeld] = useState(false);
   const [isPanning, setIsPanning] = useState(false);
   const [contextMenu, setContextMenu] = useState<CanvasContextMenu | null>(null);
-  const [arrangeOpen, setArrangeOpen] = useState(false);
-  const [pageOrder, setPageOrder] = useState<number[]>([]);
   const [reviewPage, setReviewPage] = useState(0);
   const [mobilePropertiesOpen, setMobilePropertiesOpen] = useState(false);
   const [mobileLayersOpen, setMobileLayersOpen] = useState(false);
@@ -361,10 +357,6 @@ export default function MergeShell() {
     if (!pdfDoc) return {};
     const rendered: Record<number, string> = {};
     for (let pageIndex = 0; pageIndex < pdfDoc.numPages; pageIndex += 1) {
-      if (enhancedPageImages[pageIndex]) {
-        rendered[pageIndex] = enhancedPageImages[pageIndex];
-        continue;
-      }
       const page = await pdfDoc.getPage(pageIndex + 1);
       const naturalViewport = page.getViewport({ scale: 1 });
       const scale = Math.min(1.5, 2000 / Math.max(naturalViewport.width, naturalViewport.height));
@@ -386,10 +378,6 @@ export default function MergeShell() {
       setError('Please choose a PDF file.');
       return;
     }
-    if (pdfDoc && !window.confirm('Replace the current PDF? This discards its fields, rows, and uploaded fonts.')) {
-      if (pdfInputRef.current) pdfInputRef.current.value = '';
-      return;
-    }
     setBusy('loading');
     setError('');
     try {
@@ -399,7 +387,6 @@ export default function MergeShell() {
       setPdfDoc(document);
       setPdfBytes(bytes);
       setGeometries(pageGeometries);
-      setEnhancedPageImages({});
       setCurrentPage(0);
       setReviewPage(0);
       const isCompactViewport = typeof window !== 'undefined' && window.matchMedia('(max-width: 860px)').matches;
@@ -412,8 +399,6 @@ export default function MergeShell() {
       setPlacementMode(null);
       setHandMode(false);
       setContextMenu(null);
-      setArrangeOpen(false);
-      setPageOrder([]);
       setMobilePropertiesOpen(false);
       setMobileLayersOpen(false);
     } catch (caught) {
@@ -583,8 +568,7 @@ export default function MergeShell() {
     if (pdfDoc.numPages === 1) {
       await pdfDoc.destroy();
       setPdfDoc(null); setPdfBytes(null); setGeometries([]); setCurrentPage(0); setReviewPage(0);
-      setEnhancedPageImages({});
-      setFields([]); setRows([]); setCustomFonts([]); setSelectedId(null); setSelectedIds([]); setPlacementMode(null); setHandMode(false); setNameDraft(''); setArrangeOpen(false); setPageOrder([]); setMobilePropertiesOpen(false); setMobileLayersOpen(false);
+      setFields([]); setRows([]); setCustomFonts([]); setSelectedId(null); setSelectedIds([]); setPlacementMode(null); setHandMode(false); setNameDraft(''); setMobilePropertiesOpen(false); setMobileLayersOpen(false);
       return;
     }
     setBusy('loading');
@@ -600,7 +584,6 @@ export default function MergeShell() {
       setPdfDoc(document);
       setPdfBytes(nextBytes);
       setGeometries(pageGeometries);
-      setEnhancedPageImages({});
       setCurrentPage(Math.min(pageIndex, document.numPages - 1));
       setReviewPage((current) => Math.min(current, document.numPages - 1));
       setFields((current) => current
@@ -617,8 +600,6 @@ export default function MergeShell() {
       setSelectedIds([]);
       setPlacementMode(null);
       setNameDraft('');
-      setArrangeOpen(false);
-      setPageOrder([]);
       setMobilePropertiesOpen(false);
     } catch (caught) {
       setError(caught instanceof Error ? `Could not delete this page: ${caught.message}` : 'Could not delete this page.');
@@ -627,48 +608,6 @@ export default function MergeShell() {
     }
   };
 
-  const movePageInOrder = (fromIndex: number, direction: -1 | 1) => {
-    const destination = fromIndex + direction;
-    if (destination < 0 || destination >= pageOrder.length) return;
-    setPageOrder((current) => {
-      const next = [...current];
-      [next[fromIndex], next[destination]] = [next[destination], next[fromIndex]];
-      return next;
-    });
-  };
-
-  const applyPageOrder = async () => {
-    if (!pdfDoc || !pdfBytes || pageOrder.length !== pdfDoc.numPages) return;
-    if (pageOrder.every((pageIndex, index) => pageIndex === index)) {
-      setArrangeOpen(false);
-      return;
-    }
-    setBusy('loading');
-    setError('');
-    try {
-      const { PDFDocument } = await import('pdf-lib');
-      const source = await PDFDocument.load(pdfBytes);
-      const reordered = await PDFDocument.create();
-      const copiedPages = await reordered.copyPages(source, pageOrder);
-      copiedPages.forEach((page) => reordered.addPage(page));
-      const nextBytes = new Uint8Array(await reordered.save());
-      const { document, pageGeometries } = await openPdfPreview(nextBytes);
-      await pdfDoc.destroy();
-      setPdfDoc(document);
-      setPdfBytes(nextBytes);
-      setGeometries(pageGeometries);
-      setEnhancedPageImages({});
-      setCurrentPage(Math.max(0, pageOrder.indexOf(currentPage)));
-      setFields((current) => current.map((field) => ({ ...field, pageIndex: pageOrder.indexOf(field.pageIndex) })));
-      setContextMenu(null);
-      setArrangeOpen(false);
-      setPageOrder([]);
-    } catch (caught) {
-      setError(caught instanceof Error ? `Could not arrange the pages: ${caught.message}` : 'Could not arrange the pages.');
-    } finally {
-      setBusy(null);
-    }
-  };
 
   const commitName = () => {
     if (!selected) return;
@@ -786,8 +725,8 @@ export default function MergeShell() {
   const reset = async () => {
     if (!window.confirm('Discard this PDF, all fields, and every row?')) return;
     await pdfDoc?.destroy();
-    setPdfDoc(null); setPdfBytes(null); setGeometries([]); setEnhancedPageImages({}); setCurrentPage(0);
-    setFields([]); setRows([]); setCustomFonts([]); setSelectedId(null); setSelectedIds([]); setPlacementMode(null); setHandMode(false); setContextMenu(null); setArrangeOpen(false); setPageOrder([]); setReviewPage(0); setMobilePropertiesOpen(false); setMobileLayersOpen(false); setError(''); setProgress(0);
+    setPdfDoc(null); setPdfBytes(null); setGeometries([]); setCurrentPage(0);
+    setFields([]); setRows([]); setCustomFonts([]); setSelectedId(null); setSelectedIds([]); setPlacementMode(null); setHandMode(false); setContextMenu(null); setReviewPage(0); setMobilePropertiesOpen(false); setMobileLayersOpen(false); setError(''); setProgress(0);
   };
 
   const createOutput = async (mode: 'exporting' | 'printing') => {
@@ -810,37 +749,6 @@ export default function MergeShell() {
       printTarget?.close();
       setError(caught instanceof Error ? caught.message : 'The PDF export could not be created.');
     } finally { setBusy(null); }
-  };
-
-  const togglePdfEnhancement = async () => {
-    if (!pdfDoc) return;
-    if (Object.keys(enhancedPageImages).length) {
-      setEnhancedPageImages({});
-      return;
-    }
-    setEnhancingPdf(true);
-    setError('');
-    try {
-      const enhanced: Record<number, string> = {};
-      for (let pageIndex = 0; pageIndex < pdfDoc.numPages; pageIndex += 1) {
-        const page = await pdfDoc.getPage(pageIndex + 1);
-        const naturalViewport = page.getViewport({ scale: 1 });
-        const scale = Math.min(1.5, 1800 / Math.max(naturalViewport.width, naturalViewport.height));
-        const viewport = page.getViewport({ scale: Math.max(0.75, scale) });
-        const canvas = document.createElement('canvas');
-        canvas.width = Math.round(viewport.width);
-        canvas.height = Math.round(viewport.height);
-        const context = canvas.getContext('2d');
-        if (!context) throw new Error('Canvas rendering is not available in this browser.');
-        await page.render({ canvas, canvasContext: context, viewport }).promise;
-        enhanced[pageIndex] = await imageDataUrlToPng(canvas.toDataURL('image/png'), { enhancement: 'ai' });
-      }
-      setEnhancedPageImages(enhanced);
-    } catch (caught) {
-      setError(caught instanceof Error ? `PDF enhancement could not be completed: ${caught.message}` : 'PDF enhancement could not be completed.');
-    } finally {
-      setEnhancingPdf(false);
-    }
   };
 
   const sharedValue = <T,>(values: T[]) => values.length && values.every((value) => value === values[0]) ? values[0] : '' as T | '';
@@ -920,9 +828,6 @@ export default function MergeShell() {
         </nav>
         <div className="topbar-actions">
           <input ref={pdfInputRef} type="file" accept="application/pdf,.pdf" hidden onChange={(event) => void loadPdf(event.target.files?.[0])} />
-          {view === 'template' && pdfDoc && <button className="button open-pdf-button" title="Replace PDF" onClick={() => pdfInputRef.current?.click()} disabled={Boolean(busy)}><Upload size={14} /> Replace PDF</button>}
-          {view === 'template' && pdfDoc && <button className="button arrange-pages-button" aria-label="Arrange pages" title="Arrange pages" onClick={() => { setPageOrder(Array.from({ length: pdfDoc.numPages }, (_, index) => index)); setArrangeOpen(true); }} disabled={pdfDoc.numPages < 2 || Boolean(busy)}><ListOrdered size={14} /><span>Arrange pages</span></button>}
-          {view === 'template' && pdfDoc && <button className={`icon-button${Object.keys(enhancedPageImages).length ? ' active' : ''}`} aria-label="AI enhance PDF canvas" aria-pressed={Boolean(Object.keys(enhancedPageImages).length)} title={enhancingPdf ? 'Enhancing PDF pages…' : Object.keys(enhancedPageImages).length ? 'Use original PDF canvas' : 'AI enhance PDF canvas'} onClick={() => void togglePdfEnhancement()} disabled={Boolean(busy) || enhancingPdf}><Sparkles size={14} /></button>}
           {view === 'template' && pdfDoc && <button className={`icon-button${handMode || spaceHeld ? ' active' : ''}`} aria-label="Hand tool" aria-pressed={handMode || spaceHeld} title="Hand tool — drag to pan" onClick={() => { setHandMode((current) => !current); setPlacementMode(null); }}><Hand size={14} /></button>}
           {view === 'template' && selectedIds.length > 0 && <button className="icon-button compact-properties-trigger" aria-label="Edit selected fields" title="Edit selected fields" onClick={() => setMobilePropertiesOpen(true)}><SlidersHorizontal size={14} /></button>}
           <button className="icon-button" aria-label="Start over" title="Start over" onClick={() => void reset()} disabled={!pdfDoc || Boolean(busy)}><RotateCcw size={14} /></button>
@@ -930,15 +835,6 @@ export default function MergeShell() {
       </header>
 
       {error && <div className="error-banner" role="alert"><span>{error}</span><button aria-label="Dismiss error" onClick={() => setError('')}><X size={14} /></button></div>}
-
-      {arrangeOpen && <>
-        <button className="arrange-scrim" aria-label="Close page arrangement" onClick={() => setArrangeOpen(false)} />
-        <section className="arrange-panel" role="dialog" aria-modal="true" aria-labelledby="arrange-title">
-          <div className="arrange-heading"><div><p className="eyebrow">Template pages</p><h2 id="arrange-title">Arrange pages</h2><p>Use the arrows to set the output order.</p></div><button className="icon-button" aria-label="Close page arrangement" onClick={() => setArrangeOpen(false)}><X size={15} /></button></div>
-          <ol className="arrange-list">{pageOrder.map((sourcePage, index) => <li key={sourcePage}><span className="arrange-position">{index + 1}</span><span>Page {sourcePage + 1}</span><div><button className="icon-button" aria-label={`Move page ${sourcePage + 1} earlier`} disabled={index === 0} onClick={() => movePageInOrder(index, -1)}><ArrowUp size={14} /></button><button className="icon-button" aria-label={`Move page ${sourcePage + 1} later`} disabled={index === pageOrder.length - 1} onClick={() => movePageInOrder(index, 1)}><ArrowDown size={14} /></button></div></li>)}</ol>
-          <div className="arrange-actions"><button className="button" onClick={() => setArrangeOpen(false)}>Cancel</button><button className="button button-dark" onClick={() => void applyPageOrder()} disabled={Boolean(busy)}>Apply order</button></div>
-        </section>
-      </>}
 
       {view === 'template' && <section className="workspace">
         <aside className="toolbar">
@@ -969,7 +865,7 @@ export default function MergeShell() {
               if (beginCanvasPan(event)) return;
               if (!(event.target instanceof Element && event.target.closest('.page-context-menu'))) setContextMenu(null);
             }} onPointerMoveCapture={moveCanvasPan} onPointerUpCapture={endCanvasPan} onPointerCancelCapture={endCanvasPan}>
-              <AllPagesCanvas document={pdfDoc} zoom={zoom} fields={fields} row={rows[0] ?? null} customFonts={customFonts} activePage={currentPage} selectedIds={selectedIds} placementMode={placementMode} enhancedPageImages={enhancedPageImages} onActivatePage={setCurrentPage} onSelect={selectField} onChange={updateField} onDelete={deleteField} onPlace={placeField} onNudge={nudgeSelection} onPageContextMenu={(pageIndex, position) => {
+              <AllPagesCanvas document={pdfDoc} zoom={zoom} fields={fields} row={rows[0] ?? null} customFonts={customFonts} activePage={currentPage} selectedIds={selectedIds} placementMode={placementMode} onActivatePage={setCurrentPage} onSelect={selectField} onChange={updateField} onDelete={deleteField} onPlace={placeField} onNudge={nudgeSelection} onPageContextMenu={(pageIndex, position) => {
                 setCurrentPage(pageIndex);
                 setContextMenu({ kind: 'page', pageIndex, ...position });
               }} onFieldContextMenu={(fieldId, position) => {
@@ -1064,7 +960,7 @@ export default function MergeShell() {
               <div><p className="eyebrow">Page preview</p><h2>Copy 1 · Page {reviewPage + 1} of {pdfDoc.numPages}</h2></div>
               <div><button className="button" aria-label="Previous page" onClick={() => setReviewPage((page) => Math.max(0, page - 1))} disabled={reviewPage === 0}><ArrowLeft size={14} /> Previous</button><button className="button" aria-label="Next page" onClick={() => setReviewPage((page) => Math.min(pdfDoc.numPages - 1, page + 1))} disabled={reviewPage >= pdfDoc.numPages - 1}>Next <ArrowRight size={14} /></button></div>
             </div>
-            <div className="review-page-canvas"><ReviewPagePreview document={pdfDoc} pageIndex={reviewPage} fields={fields} row={rows[0] ?? null} customFonts={customFonts} enhancedPageDataUrl={enhancedPageImages[reviewPage]} /></div>
+            <div className="review-page-canvas"><ReviewPagePreview document={pdfDoc} pageIndex={reviewPage} fields={fields} row={rows[0] ?? null} customFonts={customFonts} /></div>
           </section>
         </>}
         <div className="workflow-bottom-dock"><div className="workflow-bottom-dock-content"><Link href="/data" className="button"><ArrowLeft size={14} /> Merge data</Link>{pdfDoc && fields.length && <div className="review-bottom-actions"><button className="button" onClick={() => void createOutput('printing')} disabled={!rows.length || Boolean(busy)}><Printer size={14} /> Print</button><button className="button button-dark" onClick={() => void createOutput('exporting')} disabled={!rows.length || Boolean(busy)}><Download size={14} /> Export PDF</button></div>}</div></div>

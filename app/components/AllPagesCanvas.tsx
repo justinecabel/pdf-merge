@@ -23,12 +23,11 @@ type Props = {
   onFieldContextMenu: (fieldId: string, position: { x: number; y: number }) => void;
   onPlace: (type: 'text' | 'image', pageIndex: number, point: { x: number; y: number }) => void;
   onNudge: (fieldId: string, dx: number, dy: number) => void;
-  enhancedPageImages?: Record<number, string>;
 };
 
 export function AllPagesCanvas({
   document, zoom, fields, row, customFonts, activePage, selectedIds, placementMode,
-  onActivatePage, onSelect, onChange, onDelete, onPageContextMenu, onFieldContextMenu, onPlace, onNudge, enhancedPageImages = {},
+  onActivatePage, onSelect, onChange, onDelete, onPageContextMenu, onFieldContextMenu, onPlace, onNudge,
 }: Props) {
   const [pages, setPages] = useState<PDFPageProxy[]>([]);
 
@@ -72,7 +71,6 @@ export function AllPagesCanvas({
             onFieldContextMenu={onFieldContextMenu}
             onPlace={(type, point) => { onActivatePage(pageIndex); onPlace(type, pageIndex, point); }}
             onNudge={onNudge}
-            enhancedPageDataUrl={enhancedPageImages[pageIndex]}
           />
         </section>
       ))}

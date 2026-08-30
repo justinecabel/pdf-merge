@@ -86,7 +86,7 @@ export async function generateMergedPdf(
   geometries: PageGeometry[],
   onProgress?: (progress: ExportProgress) => void,
   customFonts: CustomFont[] = [],
-  enhancedPageImages: Record<number, string> = {},
+  templatePageImages: Record<number, string> = {},
 ) {
   if (!rows.length) throw new Error('Add at least one row before exporting.');
   const source = await PDFDocument.load(sourceBytes);
@@ -103,7 +103,7 @@ export async function generateMergedPdf(
   }));
   const fonts = new Map<string, PDFFont>(fontEntries);
   const imageCache = new Map<string, Awaited<ReturnType<typeof output.embedPng>>>();
-  const enhancedPageCache = new Map<string, Awaited<ReturnType<typeof output.embedPng>>>();
+  const templatePageCache = new Map<string, Awaited<ReturnType<typeof output.embedPng>>>();
   const pageIndexes = source.getPageIndices();
   const total = rows.length * pageIndexes.length;
   let completed = 0;
@@ -115,14 +115,14 @@ export async function generateMergedPdf(
       const page = copiedPages[sourcePageIndex];
       const geometry = geometries[sourcePageIndex];
       if (!geometry) continue;
-      const enhancedPage = enhancedPageImages[sourcePageIndex];
-      if (enhancedPage) {
-        let enhancedImage = enhancedPageCache.get(enhancedPage);
-        if (!enhancedImage) {
-          enhancedImage = await output.embedPng(dataUrlToBytes(enhancedPage));
-          enhancedPageCache.set(enhancedPage, enhancedImage);
+      const templatePage = templatePageImages[sourcePageIndex];
+      if (templatePage) {
+        let templateImage = templatePageCache.get(templatePage);
+        if (!templateImage) {
+          templateImage = await output.embedPng(dataUrlToBytes(templatePage));
+          templatePageCache.set(templatePage, templateImage);
         }
-        page.drawImage(enhancedImage, { x: 0, y: 0, width: page.getWidth(), height: page.getHeight() });
+        page.drawImage(templateImage, { x: 0, y: 0, width: page.getWidth(), height: page.getHeight() });
       }
       const pageFields = fields.filter((field) => field.pageIndex === sourcePageIndex).sort((a, b) => a.layerIndex - b.layerIndex);
       for (const field of pageFields) {
@@ -205,32 +205,6 @@ export async function generateMergedPdf(
     }
   }
   return output.save({ useObjectStreams: true });
-}
-
-export async function generateSeparatePdfZip(
-  sourceBytes: Uint8Array,
-  fields: TemplateField[],
-  rows: MergeRow[],
-  geometries: PageGeometry[],
-  onProgress?: (progress: ExportProgress) => void,
-  customFonts: CustomFont[] = [],
-  enhancedPageImages: Record<number, string> = {},
-) {
-  if (!rows.length) throw new Error('Add at least one row before exporting.');
-  const JSZip = (await import('jszip')).default;
-  const archive = new JSZip();
-  for (let index = 0; index < rows.length; index += 1) {
-    const bytes = await generateMergedPdf(sourceBytes, fields, [rows[index]], geometries, (progress) => {
-      const completed = index + progress.percent / 100;
-      onProgress?.({
-        completed,
-        total: rows.length,
-        percent: Math.round(completed / rows.length * 100),
-      });
-    }, customFonts, enhancedPageImages);
-    archive.file(`copy-${String(index + 1).padStart(3, '0')}.pdf`, bytes);
-  }
-  return archive.generateAsync({ type: 'uint8array' });
 }
 
 export function downloadPdf(bytes: Uint8Array, filename: string) {
