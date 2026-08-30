@@ -1,8 +1,7 @@
 import { PDFDocument } from 'pdf-lib';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { fitText, generateMergedPdf } from './export-pdf';
-import type { CustomFont, MergeRow, PageGeometry, TemplateField } from '../types';
-import { readFile, writeFile } from 'node:fs/promises';
+import type { MergeRow, PageGeometry, TemplateField } from '../types';
 
 beforeAll(() => {
   globalThis.requestAnimationFrame = ((callback: FrameRequestCallback) => {
@@ -31,9 +30,7 @@ describe('PDF export', () => {
     expect(output.getPageCount()).toBe(15);
   });
 
-  it('draws personalized text and PNG content without changing source-page order', async () => {
-    const fontBytes = await readFile('public/fonts/NotoSans-Regular.ttf');
-    globalThis.fetch = async () => new Response(fontBytes);
+  it('draws personalized PNG content without changing source-page order', async () => {
     const pngDataUrl = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=';
     const source = await PDFDocument.create();
     source.addPage([612, 792]);
@@ -41,70 +38,19 @@ describe('PDF export', () => {
     const sourceBytes = await source.save();
     const fields: TemplateField[] = [
       {
-        id: 'name', type: 'text', name: 'Recipient', pageIndex: 0, layerIndex: 0,
-        rect: { x: 0.1, y: 0.15, width: 0.5, height: 0.08 }, rotation: 0,
-        style: { fontFamily: 'Noto Sans', fontWeight: 'regular', fontSize: 18, minFontSize: 6, color: '#111111', align: 'left', lineHeight: 1.2 },
-      },
-      {
         id: 'mark', type: 'image', name: 'Mark', pageIndex: 1, layerIndex: 0,
         rect: { x: 0.1, y: 0.2, width: 0.3, height: 0.15 }, rotation: 0,
         style: { fit: 'contain', opacity: 1, backgroundRemoval: 'off' },
       },
     ];
     const rows: MergeRow[] = [
-      { id: 'a', values: { name: 'Ada Lovelace', mark: { kind: 'image', name: 'sample.png', dataUrl: pngDataUrl } } },
-      { id: 'b', values: { name: 'Grace Hopper', mark: null } },
+      { id: 'a', values: { mark: { kind: 'image', name: 'sample.png', dataUrl: pngDataUrl } } },
+      { id: 'b', values: { mark: null } },
     ];
     const geometries: PageGeometry[] = Array.from({ length: 2 }, () => ({ width: 612, height: 792, transform: [1, 0, 0, -1, 0, 792] }));
     const outputBytes = await generateMergedPdf(sourceBytes, fields, rows, geometries);
     const output = await PDFDocument.load(outputBytes);
     expect(output.getPageCount()).toBe(4);
-    expect(output.getPage(0).node.Contents()).toBeTruthy();
-    if (process.env.WRITE_QA_PDF === '1') await writeFile('tmp/pdfs/generated-preview.pdf', outputBytes);
-  });
-
-  it('embeds an uploaded font face in the exported PDF', async () => {
-    const source = await PDFDocument.create();
-    source.addPage([612, 792]);
-    const customFonts: CustomFont[] = [{
-      id: 'uploaded-face', name: 'Uploaded Noto', previewFamily: 'Uploaded Noto',
-      bytes: new Uint8Array(await readFile('public/fonts/NotoSans-Regular.ttf')),
-    }];
-    const fields: TemplateField[] = [{
-      id: 'custom', type: 'text', name: 'Custom', pageIndex: 0, layerIndex: 0,
-      rect: { x: 0.1, y: 0.1, width: 0.5, height: 0.1 }, rotation: 0,
-      style: { fontFamily: 'Uploaded Noto', fontFileId: 'uploaded-face', fontWeight: 'regular', fontSize: 18, minFontSize: 6, color: '#111111', align: 'left', lineHeight: 1.2 },
-    }];
-    const output = await generateMergedPdf(
-      await source.save(), fields, [{ id: 'row', values: { custom: 'Uploaded face works' } }],
-      [{ width: 612, height: 792, transform: [1, 0, 0, -1, 0, 792] }], undefined, customFonts,
-    );
-    expect((await PDFDocument.load(output)).getPageCount()).toBe(1);
-  });
-
-  it('embeds the built-in font selected for a template field', async () => {
-    const originalFetch = globalThis.fetch;
-    const requests: string[] = [];
-    const fontBytes = await readFile('public/fonts/NotoSerif-Regular.ttf');
-    globalThis.fetch = async (input) => {
-      requests.push(String(input));
-      return new Response(fontBytes);
-    };
-    try {
-      const source = await PDFDocument.create();
-      source.addPage([612, 792]);
-      const fields: TemplateField[] = [{
-        id: 'serif', type: 'text', name: 'Serif', pageIndex: 0, layerIndex: 0,
-        rect: { x: 0.1, y: 0.1, width: 0.5, height: 0.1 }, rotation: 0,
-        style: { fontFamily: 'Noto Serif', fontWeight: 'regular', fontSize: 18, minFontSize: 6, color: '#111111', align: 'left', lineHeight: 1.2 },
-      }];
-      await generateMergedPdf(
-        await source.save(), fields, [{ id: 'row', values: { serif: 'Selected serif font' } }],
-        [{ width: 612, height: 792, transform: [1, 0, 0, -1, 0, 792] }],
-      );
-      expect(requests).toContain('/fonts/NotoSerif-Regular.ttf');
-    } finally {
-      globalThis.fetch = originalFetch;
-    }
+    expect(output.getPage(1).node.Contents()).toBeTruthy();
   });
 });

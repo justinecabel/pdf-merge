@@ -4,21 +4,9 @@ import { fieldFrame } from './geometry';
 import { imageBackgroundMode, imageDataUrlToPng, imageEnhancementMode } from './image-processing';
 import type { CustomFont, ImageCellValue, MergeRow, PageGeometry, TemplateField } from '../types';
 
-const FONT_FILES = {
-  'Noto Sans-regular': '/fonts/NotoSans-Regular.ttf',
-  'Noto Sans-bold': '/fonts/NotoSans-Bold.ttf',
-  'Noto Serif-regular': '/fonts/NotoSerif-Regular.ttf',
-  'Noto Serif-bold': '/fonts/NotoSerif-Bold.ttf',
-  'Noto Sans Mono-regular': '/fonts/NotoSansMono-Regular.ttf',
-  'Noto Sans Mono-bold': '/fonts/NotoSansMono-Bold.ttf',
-} as const;
-
-type FontKey = keyof typeof FONT_FILES;
-
 function fieldFontKey(field: Extract<TemplateField, { type: 'text' }>) {
-  return field.style.fontFileId
-    ? `custom:${field.style.fontFileId}`
-    : `builtin:${field.style.fontFamily}-${field.style.fontWeight}`;
+  if (!field.style.fontFileId) throw new Error(`Choose a font for “${field.name}” before exporting.`);
+  return `custom:${field.style.fontFileId}`;
 }
 
 export type ExportProgress = {
@@ -37,12 +25,6 @@ function parseHexColor(hex: string) {
 
 function imageValue(value: unknown): value is ImageCellValue {
   return Boolean(value && typeof value === 'object' && (value as ImageCellValue).kind === 'image');
-}
-
-async function fetchBytes(url: string) {
-  const response = await fetch(url);
-  if (!response.ok) throw new Error(`Could not load required font: ${url}`);
-  return new Uint8Array(await response.arrayBuffer());
 }
 
 function dataUrlToBytes(dataUrl: string) {
@@ -95,10 +77,8 @@ export async function generateMergedPdf(
 
   const fontKeys = [...new Set(fields.filter((field): field is Extract<TemplateField, { type: 'text' }> => field.type === 'text').map(fieldFontKey))];
   const fontEntries = await Promise.all(fontKeys.map(async (key) => {
-    const fontBytes = key.startsWith('custom:')
-      ? customFonts.find((font) => font.id === key.slice('custom:'.length))?.bytes
-      : await fetchBytes(FONT_FILES[key.slice('builtin:'.length) as FontKey]);
-    if (!fontBytes) throw new Error('A selected custom font is no longer available. Choose or upload it again.');
+    const fontBytes = customFonts.find((font) => font.id === key.slice('custom:'.length))?.bytes;
+    if (!fontBytes) throw new Error('A selected font is no longer available. Choose it again.');
     return [key, await output.embedFont(fontBytes, { subset: true })] as const;
   }));
   const fonts = new Map<string, PDFFont>(fontEntries);

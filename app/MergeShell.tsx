@@ -22,6 +22,18 @@ type CanvasContextMenu =
   | { kind: 'page'; pageIndex: number; x: number; y: number }
   | { kind: 'field'; fieldId: string; x: number; y: number };
 
+type DeviceFontSource = {
+  family: string;
+  fullName: string;
+  style: string;
+  postscriptName: string;
+  blob: () => Promise<Blob>;
+};
+
+type DeviceFontWindow = Window & {
+  queryLocalFonts?: () => Promise<DeviceFontSource[]>;
+};
+
 function ImageCell({ value, onChange }: { value: CellValue; onChange: (value: ImageCellValue | null) => void }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const image = value && typeof value === 'object' && value.kind === 'image' ? value : null;
@@ -208,6 +220,7 @@ export default function MergeShell() {
   const [zoom, setZoom] = useState(1);
   const [fields, setFields] = useState<TemplateField[]>([]);
   const [customFonts, setCustomFonts] = useState<CustomFont[]>([]);
+  const [deviceFontOptions, setDeviceFontOptions] = useState<Array<{ id: string; label: string }>>([]);
   const [rows, setRows] = useState<MergeRow[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -231,6 +244,8 @@ export default function MergeShell() {
   const zoomDeltaRef = useRef(0);
   const spaceHeldRef = useRef(false);
   const panRef = useRef<{ pointerId: number; startX: number; startY: number; scrollLeft: number; scrollTop: number } | null>(null);
+  const deviceFontSourcesRef = useRef(new Map<string, DeviceFontSource>());
+  const importedDeviceFontIdsRef = useRef(new Map<string, string>());
 
   const selected = useMemo(() => fields.find((field) => field.id === selectedId) ?? null, [fields, selectedId]);
   const selectedFields = useMemo(() => fields.filter((field) => selectedIds.includes(field.id)), [fields, selectedIds]);
@@ -393,7 +408,7 @@ export default function MergeShell() {
       setZoom(isCompactViewport ? 0.65 : 1);
       setFields([]);
       setRows([createRow()]);
-      setCustomFonts([]);
+      setCustomFonts([]); setDeviceFontOptions([]); deviceFontSourcesRef.current.clear(); importedDeviceFontIdsRef.current.clear();
       setSelectedId(null);
       setSelectedIds([]);
       setPlacementMode(null);
@@ -468,6 +483,65 @@ export default function MergeShell() {
     }
   };
 
+  const applyCustomFont = (font: CustomFont) => {
+    if (!selectedFields.length || !selectedFields.every((field) => field.type === 'text')) return;
+    const selectedSet = new Set(selectedFields.map((field) => field.id));
+    setFields((current) => current.map((field) => field.type === 'text' && selectedSet.has(field.id)
+      ? { ...field, style: { ...field.style, fontFamily: font.name, fontFileId: font.id, fontWeight: 'regular' } }
+      : field));
+  };
+
+  const findDeviceFonts = async () => {
+    const api = (window as DeviceFontWindow).queryLocalFonts;
+    if (!api) {
+      setError('Device-font access is not available in this browser. Upload a .ttf or .otf font file instead.');
+      return;
+    }
+    setError('');
+    try {
+      const sources = await api();
+      const unique = new Map<string, { id: string; label: string }>();
+      deviceFontSourcesRef.current.clear();
+      sources.forEach((source, index) => {
+        const id = `${source.postscriptName || source.fullName || source.family}:${index}`;
+        const label = source.fullName || `${source.family} ${source.style}`.trim();
+        if (unique.has(label)) return;
+        deviceFontSourcesRef.current.set(id, source);
+        unique.set(label, { id, label });
+      });
+      setDeviceFontOptions([...unique.values()].sort((left, right) => left.label.localeCompare(right.label)));
+      if (!unique.size) setError('No device fonts were returned. Upload a .ttf or .otf font file instead.');
+    } catch (caught) {
+      setError(caught instanceof Error ? `Could not access device fonts: ${caught.message}` : 'Device-font access was not granted. Upload a .ttf or .otf font file instead.');
+    }
+  };
+
+  const importDeviceFont = async (sourceId: string) => {
+    const source = deviceFontSourcesRef.current.get(sourceId);
+    if (!source) return;
+    setError('');
+    try {
+      const existingId = importedDeviceFontIdsRef.current.get(sourceId);
+      let font = existingId ? customFonts.find((item) => item.id === existingId) : undefined;
+      if (!font) {
+        const blob = await source.blob();
+        if (blob.size > 20 * 1024 * 1024) throw new Error('That device font is larger than 20 MB.');
+        const bytes = new Uint8Array(await blob.arrayBuffer());
+        const id = createId();
+        const previewFamily = `Merge Device ${id}`;
+        const face = new FontFace(previewFamily, new Uint8Array(bytes).buffer);
+        await face.load();
+        document.fonts.add(face);
+        font = { id, name: source.fullName || source.family, previewFamily, bytes };
+        importedDeviceFontIdsRef.current.set(sourceId, id);
+        setCustomFonts((current) => [...current, font!]);
+      }
+      applyCustomFont(font);
+    } catch (caught) {
+      setError(caught instanceof Error ? `Could not use device font: ${caught.message}` : 'Could not use that device font.');
+    }
+  };
+
   const selectField = useCallback((id: string | null) => {
     setSelectedId(id);
     setSelectedIds(id ? [id] : []);
@@ -486,7 +560,7 @@ export default function MergeShell() {
       ? {
           id: createId(), type, name: uniqueFieldName('Text', names), pageIndex, layerIndex,
           rect: { x: clamp(point.x - width / 2, 0, 1 - width), y: clamp(point.y - height / 2, 0, 1 - height), width, height }, rotation: 0,
-          style: { fontFamily: 'Noto Sans', fontWeight: 'regular', fontSize: 18, minFontSize: 6, color: '#111111', align: 'left', lineHeight: 1.2 },
+          style: { fontFamily: '', fontWeight: 'regular', fontSize: 18, minFontSize: 6, color: '#111111', align: 'left', lineHeight: 1.2 },
         }
       : {
           id: createId(), type, name: uniqueFieldName('Image', names), pageIndex, layerIndex,
@@ -568,7 +642,7 @@ export default function MergeShell() {
     if (pdfDoc.numPages === 1) {
       await pdfDoc.destroy();
       setPdfDoc(null); setPdfBytes(null); setGeometries([]); setCurrentPage(0); setReviewPage(0);
-      setFields([]); setRows([]); setCustomFonts([]); setSelectedId(null); setSelectedIds([]); setPlacementMode(null); setHandMode(false); setNameDraft(''); setMobilePropertiesOpen(false); setMobileLayersOpen(false);
+      setFields([]); setRows([]); setCustomFonts([]); setDeviceFontOptions([]); deviceFontSourcesRef.current.clear(); importedDeviceFontIdsRef.current.clear(); setSelectedId(null); setSelectedIds([]); setPlacementMode(null); setHandMode(false); setNameDraft(''); setMobilePropertiesOpen(false); setMobileLayersOpen(false);
       return;
     }
     setBusy('loading');
@@ -726,7 +800,7 @@ export default function MergeShell() {
     if (!window.confirm('Discard this PDF, all fields, and every row?')) return;
     await pdfDoc?.destroy();
     setPdfDoc(null); setPdfBytes(null); setGeometries([]); setCurrentPage(0);
-    setFields([]); setRows([]); setCustomFonts([]); setSelectedId(null); setSelectedIds([]); setPlacementMode(null); setHandMode(false); setContextMenu(null); setReviewPage(0); setMobilePropertiesOpen(false); setMobileLayersOpen(false); setError(''); setProgress(0);
+    setFields([]); setRows([]); setCustomFonts([]); setDeviceFontOptions([]); deviceFontSourcesRef.current.clear(); importedDeviceFontIdsRef.current.clear(); setSelectedId(null); setSelectedIds([]); setPlacementMode(null); setHandMode(false); setContextMenu(null); setReviewPage(0); setMobilePropertiesOpen(false); setMobileLayersOpen(false); setError(''); setProgress(0);
   };
 
   const createOutput = async (mode: 'exporting' | 'printing') => {
@@ -753,7 +827,7 @@ export default function MergeShell() {
 
   const sharedValue = <T,>(values: T[]) => values.length && values.every((value) => value === values[0]) ? values[0] : '' as T | '';
   const selectedFontValue = selectedFields.length === 1 && selectedFields[0].type === 'text'
-    ? (selectedFields[0].style.fontFileId ? `custom:${selectedFields[0].style.fontFileId}` : `builtin:${selectedFields[0].style.fontFamily || 'Noto Sans'}`)
+    ? (selectedFields[0].style.fontFileId ? `custom:${selectedFields[0].style.fontFileId}` : '')
     : '';
   const selectionIsText = selectedFields.length > 0 && selectedFields.every((field) => field.type === 'text');
   const selectionIsImage = selectedFields.length > 0 && selectedFields.every((field) => field.type === 'image');
@@ -904,15 +978,15 @@ export default function MergeShell() {
             {selectionIsText ? <>
               <label><span>Merge font</span><select value={selectedFontValue} aria-label={selectedFields.length > 1 ? 'Merge font — multiple fields selected' : 'Merge font'} onChange={(event) => {
                 const choice = event.target.value;
-                if (choice.startsWith('custom:')) {
+                if (choice.startsWith('device:')) {
+                  void importDeviceFont(choice.slice('device:'.length));
+                } else if (choice.startsWith('custom:')) {
                   const font = customFonts.find((item) => item.id === choice.slice('custom:'.length));
-                  if (font) updateSelectedTextStyle({ fontFamily: font.name, fontFileId: font.id, fontWeight: 'regular' });
-                } else {
-                  updateSelectedTextStyle({ fontFamily: choice.slice('builtin:'.length), fontFileId: undefined });
+                  if (font) applyCustomFont(font);
                 }
-              }}>{selectedFields.length > 1 && <option value="">Multiple fields selected</option>}<optgroup label="Built-in"><option value="builtin:Noto Sans">Noto Sans</option><option value="builtin:Noto Serif">Noto Serif</option><option value="builtin:Noto Sans Mono">Noto Sans Mono</option></optgroup>{customFonts.length > 0 && <optgroup label="Uploaded fonts">{customFonts.map((font) => <option key={font.id} value={`custom:${font.id}`}>{font.name}</option>)}</optgroup>}</select></label>
-              <p className="font-note">Used in the preview and in the exported PDF.</p>
-              <div className="font-upload-row"><input ref={fontInputRef} type="file" accept=".ttf,.otf,.zip,application/zip,application/x-zip-compressed" hidden onChange={(event) => void importFonts(event.target.files?.[0])} /><button className="button" type="button" onClick={() => fontInputRef.current?.click()}><Upload size={13} /> Upload font</button><span>TTF, OTF, or ZIP</span></div>
+              }}><option value="">{selectedFields.length > 1 ? 'Multiple fields selected' : 'Choose a font'}</option>{deviceFontOptions.length > 0 && <optgroup label="Device fonts">{deviceFontOptions.map((font) => <option key={font.id} value={`device:${font.id}`}>{font.label}</option>)}</optgroup>}{customFonts.length > 0 && <optgroup label="Available fonts">{customFonts.map((font) => <option key={font.id} value={`custom:${font.id}`}>{font.name}</option>)}</optgroup>}</select></label>
+              <p className="font-note">The selected font file is used in the preview and embedded in the exported PDF.</p>
+              <div className="font-upload-row"><input ref={fontInputRef} type="file" accept=".ttf,.otf,.zip,application/zip,application/x-zip-compressed" hidden onChange={(event) => void importFonts(event.target.files?.[0])} /><button className="button" type="button" onClick={() => void findDeviceFonts()}>Use device font</button><button className="button" type="button" onClick={() => fontInputRef.current?.click()}><Upload size={13} /> Upload font</button></div>
               <div className="property-grid">
                 <label><span>Weight</span><select value={sharedValue(selectedFields.map((field) => field.type === 'text' ? field.style.fontWeight : ''))} onChange={(event) => updateSelectedTextStyle({ fontWeight: event.target.value })}><option value="">Multiple</option><option value="regular">Regular</option><option value="bold">Bold</option></select></label>
                 <label><span>Size</span><input type="number" min="6" max="144" value={sharedValue(selectedFields.map((field) => field.type === 'text' ? field.style.fontSize : ''))} placeholder="Multiple" onChange={(event) => { if (event.target.value) updateSelectedTextStyle({ fontSize: Number(event.target.value) }); }} /></label>
