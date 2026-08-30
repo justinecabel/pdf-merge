@@ -621,7 +621,7 @@ export default function MergeShell() {
 
   const deleteField = useCallback((id: string) => {
     const field = fields.find((item) => item.id === id);
-    if (!field || !window.confirm(`Delete “${field.name}” and its entire data column?`)) return;
+    if (!field) return;
     setFields((current) => current.filter((item) => item.id !== id));
     setRows((current) => current.map((row) => {
       const values = { ...row.values };
@@ -639,7 +639,6 @@ export default function MergeShell() {
   const deleteSelectedFields = () => {
     if (!selectedIds.length) return;
     if (selectedIds.length === 1) { deleteField(selectedIds[0]); return; }
-    if (!window.confirm(`Delete ${selectedIds.length} fields and their data columns?`)) return;
     const removed = new Set(selectedIds);
     setFields((current) => current.filter((field) => !removed.has(field.id)));
     setRows((current) => current.map((row) => {
