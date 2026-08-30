@@ -4,7 +4,7 @@ import type { PDFDocumentProxy } from 'pdfjs-dist';
 import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import {
   ArrowLeft, ArrowRight, Check, ChevronDown, Copy, Download, FileText, ImageIcon,
-  GripVertical, Hand, Layers3, Minus, Plus, Printer, RotateCcw, SlidersHorizontal, Trash2, Type, Upload, X,
+  GripVertical, Hand, Layers3, Minus, Plus, Printer, RotateCcw, SlidersHorizontal, Trash2, Type, X,
 } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -492,6 +492,14 @@ export default function MergeShell() {
       : field));
   };
 
+  const applyBuiltInFont = (fontFamily: string) => {
+    if (!selectedFields.length || !selectedFields.every((field) => field.type === 'text')) return;
+    const selectedSet = new Set(selectedFields.map((field) => field.id));
+    setFields((current) => current.map((field) => field.type === 'text' && selectedSet.has(field.id)
+      ? { ...field, style: { ...field.style, fontFamily, fontFileId: undefined } }
+      : field));
+  };
+
   const findDeviceFonts = async () => {
     const api = (window as DeviceFontWindow).queryLocalFonts;
     if (!api) {
@@ -515,6 +523,11 @@ export default function MergeShell() {
     } catch (caught) {
       setError(caught instanceof Error ? `Could not access device fonts: ${caught.message}` : 'Device-font access was not granted. Upload a .ttf or .otf font file instead.');
     }
+  };
+
+  const requestDeviceFonts = () => {
+    if (!window.confirm('Allow this site to ask your browser for the names of installed fonts? The selected font file is read only when you choose it.')) return;
+    void findDeviceFonts();
   };
 
   const importDeviceFont = async (sourceId: string) => {
@@ -561,7 +574,7 @@ export default function MergeShell() {
       ? {
           id: createId(), type, name: uniqueFieldName('Text', names), pageIndex, layerIndex,
           rect: { x: clamp(point.x - width / 2, 0, 1 - width), y: clamp(point.y - height / 2, 0, 1 - height), width, height }, rotation: 0,
-          style: { fontFamily: '', fontWeight: 'regular', fontSize: 18, minFontSize: 6, color: '#111111', align: 'left', lineHeight: 1.2 },
+          style: { fontFamily: 'Noto Sans', fontWeight: 'regular', fontSize: 18, minFontSize: 6, color: '#111111', align: 'left', lineHeight: 1.2 },
         }
       : {
           id: createId(), type, name: uniqueFieldName('Image', names), pageIndex, layerIndex,
@@ -844,7 +857,7 @@ export default function MergeShell() {
 
   const sharedValue = <T,>(values: T[]) => values.length && values.every((value) => value === values[0]) ? values[0] : '' as T | '';
   const selectedFontValue = selectedFields.length === 1 && selectedFields[0].type === 'text'
-    ? (selectedFields[0].style.fontFileId ? `custom:${selectedFields[0].style.fontFileId}` : '')
+    ? (selectedFields[0].style.fontFileId ? `custom:${selectedFields[0].style.fontFileId}` : `builtin:${selectedFields[0].style.fontFamily || 'Noto Sans'}`)
     : '';
   const selectionIsText = selectedFields.length > 0 && selectedFields.every((field) => field.type === 'text');
   const selectionIsImage = selectedFields.length > 0 && selectedFields.every((field) => field.type === 'image');
@@ -993,17 +1006,23 @@ export default function MergeShell() {
               <label><span>Rotation</span><input type="number" min="0" max="359" value={sharedValue(selectedFields.map((field) => field.rotation))} placeholder="Multiple" onChange={(event) => { if (event.target.value) updateSelected({ rotation: Number(event.target.value) } as Partial<TemplateField>); }} /></label>
             </div>
             {selectionIsText ? <>
+              <input ref={fontInputRef} type="file" accept=".ttf,.otf,.zip,application/zip,application/x-zip-compressed" hidden onChange={(event) => void importFonts(event.target.files?.[0])} />
               <label><span>Merge font</span><select value={selectedFontValue} aria-label={selectedFields.length > 1 ? 'Merge font — multiple fields selected' : 'Merge font'} onChange={(event) => {
                 const choice = event.target.value;
-                if (choice.startsWith('device:')) {
+                if (choice === 'action:device') {
+                  requestDeviceFonts();
+                } else if (choice === 'action:upload') {
+                  fontInputRef.current?.click();
+                } else if (choice.startsWith('device:')) {
                   void importDeviceFont(choice.slice('device:'.length));
                 } else if (choice.startsWith('custom:')) {
                   const font = customFonts.find((item) => item.id === choice.slice('custom:'.length));
                   if (font) applyCustomFont(font);
+                } else if (choice.startsWith('builtin:')) {
+                  applyBuiltInFont(choice.slice('builtin:'.length));
                 }
-              }}><option value="">{selectedFields.length > 1 ? 'Multiple fields selected' : 'Choose a font'}</option>{deviceFontOptions.length > 0 && <optgroup label="Device fonts">{deviceFontOptions.map((font) => <option key={font.id} value={`device:${font.id}`}>{font.label}</option>)}</optgroup>}{customFonts.length > 0 && <optgroup label="Available fonts">{customFonts.map((font) => <option key={font.id} value={`custom:${font.id}`}>{font.name}</option>)}</optgroup>}</select></label>
-              <p className="font-note">The selected font file is used in the preview and embedded in the exported PDF.</p>
-              <div className="font-upload-row"><input ref={fontInputRef} type="file" accept=".ttf,.otf,.zip,application/zip,application/x-zip-compressed" hidden onChange={(event) => void importFonts(event.target.files?.[0])} /><button className="button" type="button" onClick={() => void findDeviceFonts()}>Use device font</button><button className="button" type="button" onClick={() => fontInputRef.current?.click()}><Upload size={13} /> Upload font</button></div>
+              }}><option value="">{selectedFields.length > 1 ? 'Multiple fields selected' : 'Choose a font'}</option><optgroup label="Embedded fonts"><option value="builtin:Noto Sans">Noto Sans</option><option value="builtin:Noto Serif">Noto Serif</option><option value="builtin:Noto Sans Mono">Noto Sans Mono</option></optgroup>{deviceFontOptions.length > 0 && <optgroup label="Device fonts">{deviceFontOptions.map((font) => <option key={font.id} value={`device:${font.id}`}>{font.label}</option>)}</optgroup>}{customFonts.length > 0 && <optgroup label="Uploaded fonts">{customFonts.map((font) => <option key={font.id} value={`custom:${font.id}`}>{font.name}</option>)}</optgroup>}<optgroup label="More fonts"><option value="action:device">Find device fonts…</option><option value="action:upload">Upload font file…</option></optgroup></select></label>
+              <p className="font-note">Embedded and selected font files are used in the preview and exported PDF.</p>
               <div className="property-grid">
                 <label><span>Weight</span><select value={sharedValue(selectedFields.map((field) => field.type === 'text' ? field.style.fontWeight : ''))} onChange={(event) => updateSelectedTextStyle({ fontWeight: event.target.value })}><option value="">Multiple</option><option value="regular">Regular</option><option value="bold">Bold</option></select></label>
                 <label><span>Size</span><input type="number" min="6" max="144" value={sharedValue(selectedFields.map((field) => field.type === 'text' ? field.style.fontSize : ''))} placeholder="Multiple" onChange={(event) => { if (event.target.value) updateSelectedTextStyle({ fontSize: Number(event.target.value) }); }} /></label>

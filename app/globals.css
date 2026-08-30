@@ -1,5 +1,13 @@
 @import 'tailwindcss';
 
+/* The canvas preview and PDF export use these same bundled font files. */
+@font-face { font-family:'Noto Sans'; src:url('/fonts/NotoSans-Regular.ttf') format('truetype'); font-weight:400; font-style:normal; font-display:swap; }
+@font-face { font-family:'Noto Sans'; src:url('/fonts/NotoSans-Bold.ttf') format('truetype'); font-weight:700; font-style:normal; font-display:swap; }
+@font-face { font-family:'Noto Serif'; src:url('/fonts/NotoSerif-Regular.ttf') format('truetype'); font-weight:400; font-style:normal; font-display:swap; }
+@font-face { font-family:'Noto Serif'; src:url('/fonts/NotoSerif-Bold.ttf') format('truetype'); font-weight:700; font-style:normal; font-display:swap; }
+@font-face { font-family:'Noto Sans Mono'; src:url('/fonts/NotoSansMono-Regular.ttf') format('truetype'); font-weight:400; font-style:normal; font-display:swap; }
+@font-face { font-family:'Noto Sans Mono'; src:url('/fonts/NotoSansMono-Bold.ttf') format('truetype'); font-weight:700; font-style:normal; font-display:swap; }
+
 :root { --ink:#111; --paper:#fff; --line:#d4d4d4; --line-dark:#a8a8a8; --soft:#f4f4f4; --muted:#696969; }
 * { box-sizing:border-box; }
 html,body { margin:0; min-height:100%; background:var(--paper); color:var(--ink); }
@@ -68,7 +76,7 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
 .property-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
 .property-form input[type='range'] { width:100%; accent-color:#111; }
 .color-label>div { height:32px; border:1px solid var(--line); display:flex; align-items:center; gap:8px; padding:4px 7px; }.color-label input { width:22px; height:22px; padding:0; border:0; background:#fff; }.color-label code { font:10px ui-monospace,monospace; }
-.font-upload-row { display:flex; align-items:center; gap:8px; margin-top:-5px; }.font-upload-row .button { height:29px; padding-inline:8px; font-size:11px; }.font-upload-row span,.font-note { color:var(--muted); font-size:10px; line-height:1.4; }.font-note { margin:-5px 0 0; }
+.font-note { margin:-5px 0 0; color:var(--muted); font-size:10px; line-height:1.4; }
 .danger-button { margin-top:6px; color:#111; justify-self:start; }.danger-button:hover { background:#111!important; color:#fff; }
 .data-panel { min-height:166px; max-height:39vh; padding:16px 18px 20px; overflow:hidden; display:grid; grid-template-rows:auto minmax(0,1fr); gap:12px; background:#fff; }
 .data-heading { display:flex; align-items:flex-start; justify-content:space-between; }.data-heading .eyebrow { margin-bottom:7px; }.data-heading h2 { margin:0; font-size:13px; font-weight:500; }
