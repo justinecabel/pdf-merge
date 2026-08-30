@@ -244,7 +244,7 @@ export function PdfCanvas({ page, zoom, fields, row, customFonts, selectedIds, p
               }
             }}
           >
-            <span className="field-tag">{field.name}</span>
+            {field.type === 'image' && <span className="field-tag">{field.name}</span>}
             {field.type === 'text' ? interactive ? <TextFieldPlaceholder name={field.name} /> : (
               <FittedTextPreview
                 value={typeof value === 'string' && value ? value : field.name}
