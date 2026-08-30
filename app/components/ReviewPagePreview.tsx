@@ -7,35 +7,37 @@ import type { CustomFont, MergeRow, TemplateField } from '../types';
 
 type Props = {
   document: PDFDocumentProxy;
-  pageIndex: number;
   fields: TemplateField[];
   row: MergeRow | null;
   customFonts: CustomFont[];
 };
 
-export function ReviewPagePreview({ document, pageIndex, fields, row, customFonts }: Props) {
-  const [loadedPage, setLoadedPage] = useState<{ index: number; page: PDFPageProxy } | null>(null);
-  const safePageIndex = Math.min(Math.max(pageIndex, 0), document.numPages - 1);
+export function ReviewPagePreview({ document, fields, row, customFonts }: Props) {
+  const [loadedPages, setLoadedPages] = useState<PDFPageProxy[]>([]);
 
   useEffect(() => {
     let active = true;
-    void document.getPage(safePageIndex + 1).then((page) => { if (active) setLoadedPage({ index: safePageIndex, page }); });
+    void Promise.all(Array.from({ length: document.numPages }, (_, index) => document.getPage(index + 1)))
+      .then((pages) => { if (active) setLoadedPages(pages); });
     return () => { active = false; };
-  }, [document, safePageIndex]);
+  }, [document]);
 
-  if (!loadedPage || loadedPage.index !== safePageIndex) return <div className="review-page-loading">Rendering page…</div>;
+  if (loadedPages.length !== document.numPages) return <div className="review-page-loading">Rendering copy…</div>;
 
-  return <PdfCanvas
-    page={loadedPage.page}
-    zoom={1}
-    fields={fields.filter((field) => field.pageIndex === safePageIndex)}
-    row={row}
-    customFonts={customFonts}
-    selectedIds={[]}
-    onSelect={() => undefined}
-    onChange={() => undefined}
-    onDelete={() => undefined}
-    onFieldContextMenu={() => undefined}
-    interactive={false}
-  />;
+  return <div className="review-copy-stack">{loadedPages.map((page, pageIndex) => <section className="review-copy-page" key={pageIndex}>
+    <div className="review-copy-page-label">Page {pageIndex + 1}</div>
+    <PdfCanvas
+      page={page}
+      zoom={1}
+      fields={fields.filter((field) => field.pageIndex === pageIndex)}
+      row={row}
+      customFonts={customFonts}
+      selectedIds={[]}
+      onSelect={() => undefined}
+      onChange={() => undefined}
+      onDelete={() => undefined}
+      onFieldContextMenu={() => undefined}
+      interactive={false}
+    />
+  </section>)}</div>;
 }
