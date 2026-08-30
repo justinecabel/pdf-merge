@@ -1,4 +1,5 @@
 'use client';
+/* eslint-disable @next/next/no-html-link-for-pages -- workflow navigation deliberately uses History API to avoid host RSC navigation failures. */
 
 import type { PDFDocumentProxy } from 'pdfjs-dist';
 import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
@@ -6,8 +7,6 @@ import {
   ArrowLeft, ArrowRight, Check, ChevronDown, Copy, Download, FileText, ImageIcon,
   GripVertical, Hand, Layers3, Minus, Plus, Printer, RotateCcw, SlidersHorizontal, Trash2, Type, X,
 } from 'lucide-react';
-import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
 import type { KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent, RefObject } from 'react';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { AllPagesCanvas } from './components/AllPagesCanvas';
@@ -32,6 +31,14 @@ type DeviceFontSource = {
 
 type DeviceFontWindow = Window & {
   queryLocalFonts?: () => Promise<DeviceFontSource[]>;
+};
+
+type WorkflowView = 'template' | 'data' | 'review';
+
+const workflowViewForPath = (path: string): WorkflowView => {
+  if (path.startsWith('/data')) return 'data';
+  if (path.startsWith('/review')) return 'review';
+  return 'template';
 };
 
 function ImageCell({ value, onChange }: { value: CellValue; onChange: (value: ImageCellValue | null) => void }) {
@@ -212,8 +219,7 @@ export default function MergeShell() {
   const editorRef = useRef<HTMLElement>(null);
   const dataTableRef = useRef<HTMLDivElement>(null);
   const pendingDataFocusRef = useRef<{ rowId: string; fieldId: string } | null>(null);
-  const pathname = usePathname();
-  const router = useRouter();
+  const [view, setView] = useState<WorkflowView>('template');
   const [pdfDoc, setPdfDoc] = useState<PDFDocumentProxy | null>(null);
   const [pdfBytes, setPdfBytes] = useState<Uint8Array | null>(null);
   const [geometries, setGeometries] = useState<PageGeometry[]>([]);
@@ -253,11 +259,22 @@ export default function MergeShell() {
   const selectedFields = useMemo(() => fields.filter((field) => selectedIds.includes(field.id)), [fields, selectedIds]);
   const currentFields = useMemo(() => fields.filter((field) => field.pageIndex === currentPage), [fields, currentPage]);
   const hasSession = Boolean(pdfDoc);
-  const view = pathname.startsWith('/data') ? 'data' : pathname.startsWith('/review') ? 'review' : 'template';
   const activeReviewCopyIndex = Math.min(reviewCopyIndex, Math.max(rows.length - 1, 0));
   const activeReviewRow = rows[activeReviewCopyIndex] ?? null;
 
+  const navigate = useCallback((path: '/' | '/data' | '/review') => {
+    if (window.location.pathname === path) return;
+    window.history.pushState(null, '', path);
+    setView(workflowViewForPath(path));
+  }, []);
+
   useEffect(() => { document.title = view === 'template' ? 'Template' : view === 'data' ? 'Data' : 'Review'; }, [view]);
+  useEffect(() => {
+    const syncView = () => setView(workflowViewForPath(window.location.pathname));
+    syncView();
+    window.addEventListener('popstate', syncView);
+    return () => window.removeEventListener('popstate', syncView);
+  }, []);
   useEffect(() => { zoomRef.current = zoom; }, [zoom]);
   useLayoutEffect(() => {
     const anchor = zoomAnchorRef.current;
@@ -593,7 +610,7 @@ export default function MergeShell() {
     const row = rows[0] ?? createRow();
     if (!rows.length) setRows([row]);
     pendingDataFocusRef.current = { rowId: row.id, fieldId: field.id };
-    router.push('/data');
+    navigate('/data');
   };
 
   const nudgeSelection = useCallback((originId: string, dx: number, dy: number) => {
@@ -906,7 +923,7 @@ export default function MergeShell() {
       <div className="empty-icon"><FileText size={20} /></div>
       <h1>{title}</h1>
       <p>{copy}</p>
-      <Link className="button button-dark" href="/">Go to template</Link>
+      <a className="button button-dark" href="/" onClick={(event) => { event.preventDefault(); navigate('/'); }}>Go to template</a>
     </div>
   );
 
@@ -934,9 +951,9 @@ export default function MergeShell() {
       <header className="topbar">
         <div className="topbar-spacer" aria-hidden="true" />
         <nav className="workflow-nav" aria-label="Mail merge workflow">
-          <Link href="/" className={view === 'template' ? 'active' : ''} aria-current={view === 'template' ? 'step' : undefined}><span>1</span> Template</Link>
-          <Link href="/data" className={view === 'data' ? 'active' : ''} aria-current={view === 'data' ? 'step' : undefined}><span>2</span> Data</Link>
-          <Link href="/review" className={view === 'review' ? 'active' : ''} aria-current={view === 'review' ? 'step' : undefined}><span>3</span> Review</Link>
+          <a href="/" onClick={(event) => { event.preventDefault(); navigate('/'); }} className={view === 'template' ? 'active' : ''} aria-current={view === 'template' ? 'step' : undefined}><span>1</span> Template</a>
+          <a href="/data" onClick={(event) => { event.preventDefault(); navigate('/data'); }} className={view === 'data' ? 'active' : ''} aria-current={view === 'data' ? 'step' : undefined}><span>2</span> Data</a>
+          <a href="/review" onClick={(event) => { event.preventDefault(); navigate('/review'); }} className={view === 'review' ? 'active' : ''} aria-current={view === 'review' ? 'step' : undefined}><span>3</span> Review</a>
         </nav>
         <div className="topbar-actions">
           <input ref={pdfInputRef} type="file" accept="application/pdf,.pdf" hidden onChange={(event) => void loadPdf(event.target.files?.[0])} />
@@ -1066,7 +1083,7 @@ export default function MergeShell() {
           <button className="button" disabled={!pdfDoc || !fields.length || Boolean(busy)} onClick={() => addRowAndFocus()}><Plus size={14} /> Add row</button>
         </div>
         {dataTable}
-        <div className="workflow-bottom-dock"><div className="workflow-bottom-dock-content"><Link href="/" className="button"><ArrowLeft size={14} /> Template</Link><Link href="/review" className="button button-dark">Review output <ArrowRight size={14} /></Link></div></div>
+        <div className="workflow-bottom-dock"><div className="workflow-bottom-dock-content"><a href="/" onClick={(event) => { event.preventDefault(); navigate('/'); }} className="button"><ArrowLeft size={14} /> Template</a><a href="/review" onClick={(event) => { event.preventDefault(); navigate('/review'); }} className="button button-dark">Review output <ArrowRight size={14} /></a></div></div>
       </section>}
 
       {view === 'review' && <section className="workflow-page review-workflow-page">
@@ -1080,7 +1097,7 @@ export default function MergeShell() {
             <div className="review-page-canvas"><ReviewPagePreview document={pdfDoc} fields={fields} row={activeReviewRow} customFonts={customFonts} /></div>
           </section>
         </>}
-        <div className="workflow-bottom-dock"><div className="workflow-bottom-dock-content"><Link href="/data" className="button"><ArrowLeft size={14} /> Merge data</Link>{pdfDoc && fields.length && <div className="review-bottom-actions"><button className="button" onClick={() => void createOutput('printing')} disabled={!rows.length || Boolean(busy)}><Printer size={14} /> Print</button>{rows.length > 1 ? <div className="export-combo"><div className="export-combo-buttons"><button className="button button-dark" onClick={() => void createOutput('exporting')} disabled={Boolean(busy)}><Download size={14} /> Export PDF</button><button className="button button-dark export-options-trigger" aria-label="Export options" aria-expanded={exportMenuOpen} onClick={() => setExportMenuOpen((open) => !open)} disabled={Boolean(busy)}><ChevronDown size={14} /></button></div>{exportMenuOpen && <div className="export-menu" role="menu"><button role="menuitem" onClick={() => { setExportMenuOpen(false); void createOutput('exporting', true); }} disabled={Boolean(busy)}>One PDF per row (.zip)</button></div>}</div> : <button className="button button-dark" onClick={() => void createOutput('exporting')} disabled={!rows.length || Boolean(busy)}><Download size={14} /> Export PDF</button>}</div>}</div></div>
+        <div className="workflow-bottom-dock"><div className="workflow-bottom-dock-content"><a href="/data" onClick={(event) => { event.preventDefault(); navigate('/data'); }} className="button"><ArrowLeft size={14} /> Merge data</a>{pdfDoc && fields.length && <div className="review-bottom-actions"><button className="button" onClick={() => void createOutput('printing')} disabled={!rows.length || Boolean(busy)}><Printer size={14} /> Print</button>{rows.length > 1 ? <div className="export-combo"><div className="export-combo-buttons"><button className="button button-dark" onClick={() => void createOutput('exporting')} disabled={Boolean(busy)}><Download size={14} /> Export PDF</button><button className="button button-dark export-options-trigger" aria-label="Export options" aria-expanded={exportMenuOpen} onClick={() => setExportMenuOpen((open) => !open)} disabled={Boolean(busy)}><ChevronDown size={14} /></button></div>{exportMenuOpen && <div className="export-menu" role="menu"><button role="menuitem" onClick={() => { setExportMenuOpen(false); void createOutput('exporting', true); }} disabled={Boolean(busy)}>One PDF per row (.zip)</button></div>}</div> : <button className="button button-dark" onClick={() => void createOutput('exporting')} disabled={!rows.length || Boolean(busy)}><Download size={14} /> Export PDF</button>}</div>}</div></div>
       </section>}
 
       {busy && <div className="busy-overlay" role="status" aria-live="polite"><div className="busy-card"><span className="busy-mark">{busy === 'loading' ? <FileText size={18} /> : <Check size={18} />}</span><div><strong>{busy === 'loading' ? 'Opening PDF' : busy === 'printing' ? 'Preparing print copy' : 'Creating PDF'}</strong><p>{busy === 'loading' ? 'Reading pages locally…' : `${progress}% complete`}</p></div>{busy !== 'loading' && <div className="progress-track"><span style={{ width: `${progress}%` }} /></div>}</div></div>}
