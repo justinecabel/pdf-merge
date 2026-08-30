@@ -55,10 +55,6 @@ function FittedTextPreview({
   }}>{value}</span>;
 }
 
-function TextFieldPlaceholder({ name }: { name: string }) {
-  return <span className="field-name-placeholder"><span>Text field</span><strong>{name}</strong></span>;
-}
-
 function PreparedImagePreview({ dataUrl, fit, opacity, backgroundRemoval, enhancement, targetAspect }: { dataUrl: string; fit: 'contain' | 'cover'; opacity: number; backgroundRemoval: 'auto' | 'ai' | 'off'; enhancement: 'off' | 'ai'; targetAspect?: number }) {
   const [prepared, setPrepared] = useState<{ source: string; url: string } | null>(null);
   useEffect(() => {
@@ -244,8 +240,8 @@ export function PdfCanvas({ page, zoom, fields, row, customFonts, selectedIds, p
               }
             }}
           >
-            {field.type === 'image' && <span className="field-tag">{field.name}</span>}
-            {field.type === 'text' ? interactive ? <TextFieldPlaceholder name={field.name} /> : (
+            <span className="field-tag">{field.name}</span>
+            {field.type === 'text' ? interactive ? null : (
               <FittedTextPreview
                 value={typeof value === 'string' && value ? value : field.name}
                 fontFamily={previewFamily}
