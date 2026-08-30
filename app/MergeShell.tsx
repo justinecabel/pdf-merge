@@ -590,12 +590,10 @@ export default function MergeShell() {
     setNameDraft(field.name);
     setPlacementMode(null);
     setMobilePropertiesOpen(false);
-    if (type === 'text') {
-      const row = rows[0] ?? createRow();
-      if (!rows.length) setRows([row]);
-      pendingDataFocusRef.current = { rowId: row.id, fieldId: field.id };
-      router.push('/data');
-    }
+    const row = rows[0] ?? createRow();
+    if (!rows.length) setRows([row]);
+    pendingDataFocusRef.current = { rowId: row.id, fieldId: field.id };
+    router.push('/data');
   };
 
   const nudgeSelection = useCallback((originId: string, dx: number, dy: number) => {
