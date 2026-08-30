@@ -1006,7 +1006,7 @@ export default function MergeShell() {
               <label><span>Rotation</span><input type="number" min="0" max="359" value={sharedValue(selectedFields.map((field) => field.rotation))} placeholder="Multiple" onChange={(event) => { if (event.target.value) updateSelected({ rotation: Number(event.target.value) } as Partial<TemplateField>); }} /></label>
             </div>
             {selectionIsText ? <>
-              <label><span>Font</span><select value={selectedFontValue} aria-label={selectedFields.length > 1 ? 'Font — multiple fields selected' : 'Font'} onChange={(event) => {
+              <label><span>Merge font</span><select value={selectedFontValue} aria-label={selectedFields.length > 1 ? 'Merge font — multiple fields selected' : 'Merge font'} onChange={(event) => {
                 const choice = event.target.value;
                 if (choice.startsWith('custom:')) {
                   const font = customFonts.find((item) => item.id === choice.slice('custom:'.length));
@@ -1015,6 +1015,7 @@ export default function MergeShell() {
                   updateSelectedTextStyle({ fontFamily: choice.slice('builtin:'.length), fontFileId: undefined });
                 }
               }}>{selectedFields.length > 1 && <option value="">Multiple fields selected</option>}<optgroup label="Built-in"><option value="builtin:Noto Sans">Noto Sans</option><option value="builtin:Noto Serif">Noto Serif</option><option value="builtin:Noto Sans Mono">Noto Sans Mono</option></optgroup>{customFonts.length > 0 && <optgroup label="Uploaded fonts">{customFonts.map((font) => <option key={font.id} value={`custom:${font.id}`}>{font.name}</option>)}</optgroup>}</select></label>
+              <p className="font-note">Used in the preview and in the exported PDF.</p>
               <div className="font-upload-row"><input ref={fontInputRef} type="file" accept=".ttf,.otf,.zip,application/zip,application/x-zip-compressed" hidden onChange={(event) => void importFonts(event.target.files?.[0])} /><button className="button" type="button" onClick={() => fontInputRef.current?.click()}><Upload size={13} /> Upload font</button><span>TTF, OTF, or ZIP</span></div>
               <div className="property-grid">
                 <label><span>Weight</span><select value={sharedValue(selectedFields.map((field) => field.type === 'text' ? field.style.fontWeight : ''))} onChange={(event) => updateSelectedTextStyle({ fontWeight: event.target.value })}><option value="">Multiple</option><option value="regular">Regular</option><option value="bold">Bold</option></select></label>

@@ -98,4 +98,30 @@ describe('PDF export', () => {
     );
     expect((await PDFDocument.load(output)).getPageCount()).toBe(1);
   });
+
+  it('embeds the built-in font selected for a template field', async () => {
+    const originalFetch = globalThis.fetch;
+    const requests: string[] = [];
+    const fontBytes = await readFile('public/fonts/NotoSerif-Regular.ttf');
+    globalThis.fetch = async (input) => {
+      requests.push(String(input));
+      return new Response(fontBytes);
+    };
+    try {
+      const source = await PDFDocument.create();
+      source.addPage([612, 792]);
+      const fields: TemplateField[] = [{
+        id: 'serif', type: 'text', name: 'Serif', pageIndex: 0, layerIndex: 0,
+        rect: { x: 0.1, y: 0.1, width: 0.5, height: 0.1 }, rotation: 0,
+        style: { fontFamily: 'Noto Serif', fontWeight: 'regular', fontSize: 18, minFontSize: 6, color: '#111111', align: 'left', lineHeight: 1.2 },
+      }];
+      await generateMergedPdf(
+        await source.save(), fields, [{ id: 'row', values: { serif: 'Selected serif font' } }],
+        [{ width: 612, height: 792, transform: [1, 0, 0, -1, 0, 792] }],
+      );
+      expect(requests).toContain('/fonts/NotoSerif-Regular.ttf');
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
 });

@@ -1,5 +1,13 @@
 @import 'tailwindcss';
 
+/* The canvas preview and PDF export use these same bundled font files. */
+@font-face { font-family:'Noto Sans'; src:url('/fonts/NotoSans-Regular.ttf') format('truetype'); font-weight:400; font-style:normal; font-display:swap; }
+@font-face { font-family:'Noto Sans'; src:url('/fonts/NotoSans-Bold.ttf') format('truetype'); font-weight:700; font-style:normal; font-display:swap; }
+@font-face { font-family:'Noto Serif'; src:url('/fonts/NotoSerif-Regular.ttf') format('truetype'); font-weight:400; font-style:normal; font-display:swap; }
+@font-face { font-family:'Noto Serif'; src:url('/fonts/NotoSerif-Bold.ttf') format('truetype'); font-weight:700; font-style:normal; font-display:swap; }
+@font-face { font-family:'Noto Sans Mono'; src:url('/fonts/NotoSansMono-Regular.ttf') format('truetype'); font-weight:400; font-style:normal; font-display:swap; }
+@font-face { font-family:'Noto Sans Mono'; src:url('/fonts/NotoSansMono-Bold.ttf') format('truetype'); font-weight:700; font-style:normal; font-display:swap; }
+
 :root { --ink:#111; --paper:#fff; --line:#d4d4d4; --line-dark:#a8a8a8; --soft:#f4f4f4; --muted:#696969; }
 * { box-sizing:border-box; }
 html,body { margin:0; min-height:100%; background:var(--paper); color:var(--ink); }
