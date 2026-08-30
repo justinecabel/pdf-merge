@@ -914,8 +914,8 @@ export default function MergeShell() {
         <div className="topbar-spacer" aria-hidden="true" />
         <nav className="workflow-nav" aria-label="Mail merge workflow">
           <Link href="/" className={view === 'template' ? 'active' : ''} aria-current={view === 'template' ? 'step' : undefined}><span>1</span> Template</Link>
-          {hasSession ? <Link href="/data" className={view === 'data' ? 'active' : ''} aria-current={view === 'data' ? 'step' : undefined}><span>2</span> Data</Link> : <span className="workflow-nav-disabled" aria-disabled="true"><span>2</span> Data</span>}
-          {hasSession ? <Link href="/review" className={view === 'review' ? 'active' : ''} aria-current={view === 'review' ? 'step' : undefined}><span>3</span> Review</Link> : <span className="workflow-nav-disabled" aria-disabled="true"><span>3</span> Review</span>}
+          <Link href="/data" className={view === 'data' ? 'active' : ''} aria-current={view === 'data' ? 'step' : undefined}><span>2</span> Data</Link>
+          <Link href="/review" className={view === 'review' ? 'active' : ''} aria-current={view === 'review' ? 'step' : undefined}><span>3</span> Review</Link>
         </nav>
         <div className="topbar-actions">
           <input ref={pdfInputRef} type="file" accept="application/pdf,.pdf" hidden onChange={(event) => void loadPdf(event.target.files?.[0])} />

@@ -84,11 +84,10 @@ th.row-actions,td.row-actions { width:78px; min-width:78px; text-align:center; b
 /* Multi-step workflow */
 .app-shell { height:100vh; min-height:0; grid-template-rows:56px minmax(0,1fr); overflow:hidden; }
 .workflow-nav { height:100%; display:flex; align-items:stretch; }
-.workflow-nav a,.workflow-nav-disabled { min-width:94px; padding:0 14px; display:flex; align-items:center; justify-content:center; gap:7px; border-bottom:2px solid transparent; color:var(--muted); text-decoration:none; font-size:11px; }
+.workflow-nav a { min-width:94px; padding:0 14px; display:flex; align-items:center; justify-content:center; gap:7px; border-bottom:2px solid transparent; color:var(--muted); text-decoration:none; font-size:11px; }
 .workflow-nav a:hover { color:#111; background:#fafafa; }
 .workflow-nav a.active { color:#111; border-bottom-color:#111; font-weight:650; }
-.workflow-nav a span,.workflow-nav-disabled span { width:18px; height:18px; display:grid; place-items:center; border:1px solid currentColor; font-size:9px; }
-.workflow-nav-disabled { color:#b0b0b0; cursor:not-allowed; }
+.workflow-nav a span { width:18px; height:18px; display:grid; place-items:center; border:1px solid currentColor; font-size:9px; }
 .view-template .workspace { min-height:0; height:100%; }
 .view-template .editor { min-height:0; height:100%; }
 .view-template .editor.has-document { display:block; padding:0; overflow:hidden; }
@@ -119,8 +118,8 @@ th.row-actions,td.row-actions { width:78px; min-width:78px; text-align:center; b
 .data-workflow-page>.workflow-empty { max-width:1180px; margin:0 auto; }
 .review-page-panel { max-width:1180px; margin:0 auto 16px; border:1px solid var(--line); }.review-page-toolbar { min-height:56px; padding:10px 14px; display:flex; align-items:center; justify-content:space-between; gap:14px; border-bottom:1px solid var(--line); }.review-page-toolbar .eyebrow { margin:0 0 3px; }.review-page-toolbar h2 { margin:0; font-size:14px; }.review-page-toolbar>div:last-child { display:flex; gap:7px; }.review-page-canvas { min-height:280px; max-height:70vh; padding:16px; display:flex; justify-content:center; overflow:auto; background:#eee; }.review-page-canvas .page-stage { flex:0 0 auto; }.review-page-loading { min-height:280px; display:grid; place-items:center; color:var(--muted); }.page-stage.read-only .field-box { border:0; background:transparent; pointer-events:none; }.page-stage.read-only .field-tag { display:none; }
 .export-combo { position:relative; }.export-combo-buttons { display:flex; }.export-combo-buttons .button + .button { margin-left:-1px; }.export-options-trigger { min-width:32px; padding-inline:7px; }.export-menu { position:absolute; z-index:25; right:0; bottom:calc(100% + 6px); min-width:190px; padding:4px; border:1px solid #111; background:#fff; }.export-menu button { width:100%; min-height:30px; padding:0 8px; border:0; background:#fff; color:#111; font:inherit; font-size:11px; text-align:left; white-space:nowrap; }.export-menu button:hover { background:var(--soft); }
-@media (max-width:1020px) { .workflow-nav a,.workflow-nav-disabled { min-width:76px; padding-inline:8px; }.workflow-nav a span,.workflow-nav-disabled span { display:none; } }
-@media (max-width:720px) { .workflow-nav a,.workflow-nav-disabled { min-width:58px; font-size:10px; }.topbar .document-name { display:none; }.review-field-list { grid-template-columns:1fr; }.review-field-list>div:nth-child(odd) { border-right:0; }.review-page-toolbar { align-items:flex-start; flex-direction:column; }.review-page-canvas { padding:14px; }.workflow-page { padding-inline:18px; }.workflow-bottom-dock { padding-inline:18px; }.workflow-bottom-dock-content { flex-wrap:wrap; }.review-bottom-actions { margin-left:auto; }.export-menu { right:0; left:auto; } }
+@media (max-width:1020px) { .workflow-nav a { min-width:76px; padding-inline:8px; }.workflow-nav a span { display:none; } }
+@media (max-width:720px) { .workflow-nav a { min-width:58px; font-size:10px; }.topbar .document-name { display:none; }.review-field-list { grid-template-columns:1fr; }.review-field-list>div:nth-child(odd) { border-right:0; }.review-page-toolbar { align-items:flex-start; flex-direction:column; }.review-page-canvas { padding:14px; }.workflow-page { padding-inline:18px; }.workflow-bottom-dock { padding-inline:18px; }.workflow-bottom-dock-content { flex-wrap:wrap; }.review-bottom-actions { margin-left:auto; }.export-menu { right:0; left:auto; } }
 /* Compact editor: fields stay reachable without narrowing the document canvas. */
 .properties-heading { display:flex; align-items:center; justify-content:space-between; gap:10px; }
 .properties-heading .eyebrow { margin-bottom:12px; }
@@ -154,8 +153,8 @@ th.row-actions,td.row-actions { width:78px; min-width:78px; text-align:center; b
   .brand { gap:7px; }.brand>span:nth-child(2) { display:none; }.brand-mark { width:24px; height:24px; }
   .topbar-actions { gap:5px; }
   .workflow-nav { position:fixed; z-index:50; bottom:0; left:0; right:0; height:56px; background:#fff; border-top:1px solid var(--line); justify-content:stretch; padding-bottom:env(safe-area-inset-bottom); }
-  .workflow-nav a,.workflow-nav-disabled { flex:1; min-width:0; height:56px; padding:0 5px; gap:6px; border:0; font-size:10px; }
-  .workflow-nav a span,.workflow-nav-disabled span { display:grid; flex:0 0 17px; width:17px; height:17px; border-color:#aaa; font-size:9px; }
+  .workflow-nav a { flex:1; min-width:0; height:56px; padding:0 5px; gap:6px; border:0; font-size:10px; }
+  .workflow-nav a span { display:grid; flex:0 0 17px; width:17px; height:17px; border-color:#aaa; font-size:9px; }
   .workflow-nav a.active { background:var(--soft); font-weight:650; }
   .workflow-nav a.active span { border-color:#111; background:#111; color:#fff; }
   .view-template .toolbar { min-height:54px; padding:7px 10px; }
