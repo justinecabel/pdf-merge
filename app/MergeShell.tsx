@@ -979,7 +979,7 @@ export default function MergeShell() {
               if (beginCanvasPan(event)) return;
               if (!(event.target instanceof Element && event.target.closest('.page-context-menu'))) setContextMenu(null);
             }} onPointerMoveCapture={moveCanvasPan} onPointerUpCapture={endCanvasPan} onPointerCancelCapture={endCanvasPan}>
-              <AllPagesCanvas document={pdfDoc} zoom={zoom} fields={fields} row={rows[0] ?? null} customFonts={customFonts} activePage={currentPage} selectedIds={selectedIds} placementMode={placementMode} onActivatePage={setCurrentPage} onSelect={selectField} onChange={updateField} onDelete={deleteField} onPlace={placeField} onNudge={nudgeSelection} onPageContextMenu={(pageIndex, position) => {
+              <AllPagesCanvas document={pdfDoc} zoom={zoom} fields={fields} row={null} customFonts={customFonts} activePage={currentPage} selectedIds={selectedIds} placementMode={placementMode} onActivatePage={setCurrentPage} onSelect={selectField} onChange={updateField} onDelete={deleteField} onPlace={placeField} onNudge={nudgeSelection} onPageContextMenu={(pageIndex, position) => {
                 setCurrentPage(pageIndex);
                 setContextMenu({ kind: 'page', pageIndex, ...position });
               }} onFieldContextMenu={(fieldId, position) => {
