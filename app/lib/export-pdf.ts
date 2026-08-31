@@ -4,13 +4,16 @@ import { fieldFrame } from './geometry';
 import { imageBackgroundMode, imageDataUrlToPng, imageEnhancementMode } from './image-processing';
 import type { CustomFont, ImageCellValue, MergeRow, PageGeometry, TemplateField } from '../types';
 
+const assetBasePath = process.env.NEXT_PUBLIC_BASE_PATH ?? '';
+const fontAsset = (filename: string) => `${assetBasePath}/fonts/${filename}`;
+
 const FONT_FILES = {
-  'Noto Sans-regular': '/fonts/NotoSans-Regular.ttf',
-  'Noto Sans-bold': '/fonts/NotoSans-Bold.ttf',
-  'Noto Serif-regular': '/fonts/NotoSerif-Regular.ttf',
-  'Noto Serif-bold': '/fonts/NotoSerif-Bold.ttf',
-  'Noto Sans Mono-regular': '/fonts/NotoSansMono-Regular.ttf',
-  'Noto Sans Mono-bold': '/fonts/NotoSansMono-Bold.ttf',
+  'Noto Sans-regular': fontAsset('NotoSans-Regular.ttf'),
+  'Noto Sans-bold': fontAsset('NotoSans-Bold.ttf'),
+  'Noto Serif-regular': fontAsset('NotoSerif-Regular.ttf'),
+  'Noto Serif-bold': fontAsset('NotoSerif-Bold.ttf'),
+  'Noto Sans Mono-regular': fontAsset('NotoSansMono-Regular.ttf'),
+  'Noto Sans Mono-bold': fontAsset('NotoSansMono-Bold.ttf'),
 } as const;
 
 type FontKey = keyof typeof FONT_FILES;
