@@ -1,12 +1,8 @@
 import type { Metadata } from 'next';
-import { Geist } from 'next/font/google';
 import './globals.css';
 import MergeShell from './MergeShell';
 
-const geistSans = Geist({
-  variable: '--font-geist-sans',
-  subsets: ['latin'],
-});
+export const dynamic = 'force-static';
 
 export const metadata: Metadata = {
   title: 'Template',
@@ -20,7 +16,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${geistSans.variable} antialiased`}>
+      <body className="antialiased">
         <MergeShell />
         <div hidden>{children}</div>
       </body>

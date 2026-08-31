@@ -1,17 +1,17 @@
 @import 'tailwindcss';
 
 /* The canvas preview and PDF export use these same bundled font files. */
-@font-face { font-family:'Noto Sans'; src:url('/fonts/NotoSans-Regular.ttf') format('truetype'); font-weight:400; font-style:normal; font-display:swap; }
-@font-face { font-family:'Noto Sans'; src:url('/fonts/NotoSans-Bold.ttf') format('truetype'); font-weight:700; font-style:normal; font-display:swap; }
-@font-face { font-family:'Noto Serif'; src:url('/fonts/NotoSerif-Regular.ttf') format('truetype'); font-weight:400; font-style:normal; font-display:swap; }
-@font-face { font-family:'Noto Serif'; src:url('/fonts/NotoSerif-Bold.ttf') format('truetype'); font-weight:700; font-style:normal; font-display:swap; }
-@font-face { font-family:'Noto Sans Mono'; src:url('/fonts/NotoSansMono-Regular.ttf') format('truetype'); font-weight:400; font-style:normal; font-display:swap; }
-@font-face { font-family:'Noto Sans Mono'; src:url('/fonts/NotoSansMono-Bold.ttf') format('truetype'); font-weight:700; font-style:normal; font-display:swap; }
+@font-face { font-family:'Noto Sans'; src:url('../../../fonts/NotoSans-Regular.ttf') format('truetype'); font-weight:400; font-style:normal; font-display:swap; }
+@font-face { font-family:'Noto Sans'; src:url('../../../fonts/NotoSans-Bold.ttf') format('truetype'); font-weight:700; font-style:normal; font-display:swap; }
+@font-face { font-family:'Noto Serif'; src:url('../../../fonts/NotoSerif-Regular.ttf') format('truetype'); font-weight:400; font-style:normal; font-display:swap; }
+@font-face { font-family:'Noto Serif'; src:url('../../../fonts/NotoSerif-Bold.ttf') format('truetype'); font-weight:700; font-style:normal; font-display:swap; }
+@font-face { font-family:'Noto Sans Mono'; src:url('../../../fonts/NotoSansMono-Regular.ttf') format('truetype'); font-weight:400; font-style:normal; font-display:swap; }
+@font-face { font-family:'Noto Sans Mono'; src:url('../../../fonts/NotoSansMono-Bold.ttf') format('truetype'); font-weight:700; font-style:normal; font-display:swap; }
 
 :root { --ink:#111; --paper:#fff; --line:#d4d4d4; --line-dark:#a8a8a8; --soft:#f4f4f4; --muted:#696969; }
 * { box-sizing:border-box; }
 html,body { margin:0; min-height:100%; background:var(--paper); color:var(--ink); }
-body { font-family:var(--font-geist-sans),Arial,sans-serif; font-size:13px; }
+body { font-family:Arial,sans-serif; font-size:13px; }
 button,input,select,textarea { font:inherit; color:inherit; }
 button { cursor:pointer; }
 button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,[tabindex]:focus-visible { outline:2px solid #111; outline-offset:2px; }
@@ -64,7 +64,7 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
 .page-stage.placing-text,.page-stage.placing-text canvas { cursor:text; }.page-stage.placing-image,.page-stage.placing-image canvas { cursor:copy; }.page-stage.placing .field-box { cursor:not-allowed; }
 .field-box { position:absolute; z-index:2; display:flex; align-items:center; justify-content:center; border:1px dashed #111; background:rgba(255,255,255,.38); transform-origin:center; cursor:move; touch-action:none; }
 .field-box.selected { border:1.5px solid #111; background:rgba(255,255,255,.22); z-index:3; }
-.field-tag { position:absolute; left:-1px; bottom:calc(100% + 4px); max-width:140px; padding:2px 5px; background:#111; color:#fff; font:600 9px/1.3 var(--font-geist-sans),sans-serif; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.field-tag { position:absolute; left:-1px; bottom:calc(100% + 4px); max-width:140px; padding:2px 5px; background:#111; color:#fff; font:600 9px/1.3 Arial,sans-serif; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .field-text-preview { display:block; width:100%; height:100%; padding:2px; overflow:hidden; white-space:pre; opacity:.85; pointer-events:none; }
 .image-placeholder { width:100%; height:100%; display:grid; place-items:center; background:repeating-linear-gradient(45deg,#fff,#fff 5px,#eee 5px,#eee 6px); color:#444; }
 .field-image-preview { width:100%; height:100%; pointer-events:none; }.field-image-preview.contain { object-fit:contain; }.field-image-preview.cover { object-fit:cover; }
