@@ -233,6 +233,11 @@ export function openPrintablePdf(bytes: Uint8Array, target?: Window | null) {
     throw new Error('Allow pop-ups to open the printable PDF.');
   }
   opened.opener = null;
+  const printWhenLoaded = () => {
+    opened.focus();
+    window.setTimeout(() => opened.print(), 150);
+  };
+  opened.addEventListener('load', printWhenLoaded, { once: true });
   opened.location.href = url;
   window.setTimeout(() => URL.revokeObjectURL(url), 5 * 60_000);
 }
