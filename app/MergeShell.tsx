@@ -3,7 +3,7 @@
 import type { PDFDocumentProxy } from 'pdfjs-dist';
 import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import {
-  ArrowLeft, ArrowRight, Check, ChevronDown, Copy, Download, FileText, ImageIcon,
+  ArrowLeft, ArrowRight, Check, Copy, FileText, ImageIcon,
   GripVertical, Hand, Layers3, Minus, Plus, Printer, RotateCcw, SlidersHorizontal, Trash2, Type, X,
 } from 'lucide-react';
 import type { KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent, RefObject } from 'react';
@@ -244,13 +244,12 @@ export default function MergeShell() {
   const [isPanning, setIsPanning] = useState(false);
   const [contextMenu, setContextMenu] = useState<CanvasContextMenu | null>(null);
   const [reviewCopyIndex, setReviewCopyIndex] = useState(0);
-  const [exportMenuOpen, setExportMenuOpen] = useState(false);
   const [mobilePropertiesOpen, setMobilePropertiesOpen] = useState(false);
   const [mobileLayersOpen, setMobileLayersOpen] = useState(false);
   const [layerDropTarget, setLayerDropTarget] = useState<string | null>(null);
   const [nameDraft, setNameDraft] = useState('');
   const [error, setError] = useState('');
-  const [busy, setBusy] = useState<'loading' | 'exporting' | 'printing' | null>(null);
+  const [busy, setBusy] = useState<'loading' | 'printing' | null>(null);
   const [progress, setProgress] = useState(0);
   const zoomRef = useRef(zoom);
   const zoomAnchorRef = useRef<{ x: number; y: number; contentX: number; contentY: number; scale: number } | null>(null);
@@ -263,7 +262,6 @@ export default function MergeShell() {
 
   const selected = useMemo(() => fields.find((field) => field.id === selectedId) ?? null, [fields, selectedId]);
   const selectedFields = useMemo(() => fields.filter((field) => selectedIds.includes(field.id)), [fields, selectedIds]);
-  const currentFields = useMemo(() => fields.filter((field) => field.pageIndex === currentPage), [fields, currentPage]);
   const hasSession = Boolean(pdfDoc);
   const activeReviewCopyIndex = Math.min(reviewCopyIndex, Math.max(rows.length - 1, 0));
   const activeReviewRow = rows[activeReviewCopyIndex] ?? null;
@@ -401,9 +399,9 @@ export default function MergeShell() {
     const rendered: Record<number, string> = {};
     for (let pageIndex = 0; pageIndex < pdfDoc.numPages; pageIndex += 1) {
       const page = await pdfDoc.getPage(pageIndex + 1);
-      const naturalViewport = page.getViewport({ scale: 1 });
+      const naturalViewport = page.getViewport({ scale: 1, rotation: 0 });
       const scale = Math.min(1.5, 2000 / Math.max(naturalViewport.width, naturalViewport.height));
-      const viewport = page.getViewport({ scale: Math.max(1, scale) });
+      const viewport = page.getViewport({ scale: Math.max(1, scale), rotation: 0 });
       const canvas = document.createElement('canvas');
       canvas.width = Math.round(viewport.width);
       canvas.height = Math.round(viewport.height);
@@ -617,7 +615,6 @@ export default function MergeShell() {
     const row = rows[0] ?? createRow();
     if (!rows.length) setRows([row]);
     pendingDataFocusRef.current = { rowId: row.id, fieldId: field.id };
-    navigate('/data');
   };
 
   const nudgeSelection = useCallback((originId: string, dx: number, dy: number) => {
@@ -838,7 +835,6 @@ export default function MergeShell() {
   });
 
   const deleteRow = (id: string) => {
-    setExportMenuOpen(false);
     setReviewCopyIndex(0);
     setRows((current) => current.filter((row) => row.id !== id));
   };
@@ -852,38 +848,22 @@ export default function MergeShell() {
 
   const moveReviewCopy = (direction: -1 | 1) => setReviewCopyIndex((copy) => Math.max(0, Math.min(rows.length - 1, copy + direction)));
 
-  const createOutput = async (mode: 'exporting' | 'printing', separate = false) => {
+  const createPrintOutput = async () => {
     if (!pdfBytes || !fields.length || !rows.length) return;
-    const printTarget = mode === 'printing' ? window.open('about:blank', '_blank') : null;
-    if (mode === 'printing' && !printTarget) {
+    const printTarget = window.open('about:blank', '_blank');
+    if (!printTarget) {
       setError('Allow pop-ups to open the printable PDF.');
       return;
     }
-    setBusy(mode); setProgress(0); setError('');
+    setBusy('printing'); setProgress(0); setError('');
     try {
-      const { downloadFile, downloadPdf, generateMergedPdf, openPrintablePdf } = await import('./lib/export-pdf');
+      const { generateMergedPdf, openPrintablePdf } = await import('./lib/export-pdf');
       const renderedTemplatePages = await renderTemplatePages();
-      const stamp = new Date().toISOString().replace(/[:.]/g, '-');
-      if (separate) {
-        const JSZip = (await import('jszip')).default;
-        const archive = new JSZip();
-        for (const [rowIndex, row] of rows.entries()) {
-          const bytes = await generateMergedPdf(pdfBytes, fields, [row], geometries, ({ percent }) => {
-            setProgress(Math.round(((rowIndex + percent / 100) / rows.length) * 100));
-          }, customFonts, renderedTemplatePages);
-          archive.file(`mail-merge-${String(rowIndex + 1).padStart(3, '0')}.pdf`, bytes);
-        }
-        const zipBytes = await archive.generateAsync({ type: 'uint8array' }, (metadata) => setProgress(Math.round(metadata.percent)));
-        downloadFile(zipBytes, `mail-merge-${stamp}.zip`, 'application/zip');
-        return;
-      }
       const bytes = await generateMergedPdf(pdfBytes, fields, rows, geometries, ({ percent }) => setProgress(percent), customFonts, renderedTemplatePages);
-      if (mode === 'exporting') {
-        downloadPdf(bytes, `mail-merge-${stamp}.pdf`);
-      } else openPrintablePdf(bytes, printTarget);
+      openPrintablePdf(bytes, printTarget);
     } catch (caught) {
       printTarget?.close();
-      setError(caught instanceof Error ? caught.message : 'The PDF export could not be created.');
+      setError(caught instanceof Error ? caught.message : 'The printable PDF could not be created.');
     } finally { setBusy(null); }
   };
 
@@ -1090,12 +1070,12 @@ export default function MergeShell() {
           <button className="button" disabled={!pdfDoc || !fields.length || Boolean(busy)} onClick={() => addRowAndFocus()}><Plus size={14} /> Add row</button>
         </div>
         {dataTable}
-        <div className="workflow-bottom-dock"><div className="workflow-bottom-dock-content"><a href={workflowHref('/')} onClick={(event) => { event.preventDefault(); navigate('/'); }} className="button"><ArrowLeft size={14} /> Template</a><a href={workflowHref('/review')} onClick={(event) => { event.preventDefault(); navigate('/review'); }} className="button button-dark">Review output <ArrowRight size={14} /></a></div></div>
+        <div className="workflow-bottom-dock"><div className="workflow-bottom-dock-content"><a href={workflowHref('/')} onClick={(event) => { event.preventDefault(); navigate('/'); }} className="button"><ArrowLeft size={14} /> Template</a><a href={workflowHref('/review')} onClick={(event) => { event.preventDefault(); navigate('/review'); }} className="button button-dark">Review print <ArrowRight size={14} /></a></div></div>
       </section>}
 
       {view === 'review' && <section className="workflow-page review-workflow-page">
-        <div className="workflow-page-heading"><div><p className="eyebrow">Step 3 of 3</p><h1>Review and export</h1><p>Confirm the batch size and field placement before creating the combined PDF.</p></div></div>
-        {!pdfDoc || !fields.length ? emptyWorkflow('Nothing to review yet', 'Complete the Template and Data steps before exporting.') : <>
+        <div className="workflow-page-heading"><div><p className="eyebrow">Step 3 of 3</p><h1>Review and print</h1><p>Confirm the batch size and field placement before printing the combined PDF.</p></div></div>
+        {!pdfDoc || !fields.length ? emptyWorkflow('Nothing to review yet', 'Complete the Template and Data steps before printing.') : <>
           <section className="review-page-panel" aria-label="Page preview">
             <div className="review-page-toolbar">
               <div><p className="eyebrow">Copy preview</p><h2>Copy {activeReviewCopyIndex + 1} of {rows.length} · All {pdfDoc.numPages} pages</h2></div>
@@ -1104,7 +1084,7 @@ export default function MergeShell() {
             <div className="review-page-canvas"><ReviewPagePreview document={pdfDoc} fields={fields} row={activeReviewRow} customFonts={customFonts} /></div>
           </section>
         </>}
-        <div className="workflow-bottom-dock"><div className="workflow-bottom-dock-content"><a href={workflowHref('/data')} onClick={(event) => { event.preventDefault(); navigate('/data'); }} className="button"><ArrowLeft size={14} /> Merge data</a>{pdfDoc && fields.length && <div className="review-bottom-actions"><button className="button" onClick={() => void createOutput('printing')} disabled={!rows.length || Boolean(busy)}><Printer size={14} /> Print</button>{rows.length > 1 ? <div className="export-combo"><div className="export-combo-buttons"><button className="button button-dark" onClick={() => void createOutput('exporting')} disabled={Boolean(busy)}><Download size={14} /> Export PDF</button><button className="button button-dark export-options-trigger" aria-label="Export options" aria-expanded={exportMenuOpen} onClick={() => setExportMenuOpen((open) => !open)} disabled={Boolean(busy)}><ChevronDown size={14} /></button></div>{exportMenuOpen && <div className="export-menu" role="menu"><button role="menuitem" onClick={() => { setExportMenuOpen(false); void createOutput('exporting', true); }} disabled={Boolean(busy)}>One PDF per row (.zip)</button></div>}</div> : <button className="button button-dark" onClick={() => void createOutput('exporting')} disabled={!rows.length || Boolean(busy)}><Download size={14} /> Export PDF</button>}</div>}</div></div>
+        <div className="workflow-bottom-dock"><div className="workflow-bottom-dock-content"><a href={workflowHref('/data')} onClick={(event) => { event.preventDefault(); navigate('/data'); }} className="button"><ArrowLeft size={14} /> Merge data</a>{pdfDoc && fields.length && <div className="review-bottom-actions"><button className="button button-dark" onClick={() => void createPrintOutput()} disabled={!rows.length || Boolean(busy)}><Printer size={14} /> Print</button></div>}</div></div>
       </section>}
 
       {busy && <div className="busy-overlay" role="status" aria-live="polite"><div className="busy-card"><span className="busy-mark">{busy === 'loading' ? <FileText size={18} /> : <Check size={18} />}</span><div><strong>{busy === 'loading' ? 'Opening PDF' : busy === 'printing' ? 'Preparing print copy' : 'Creating PDF'}</strong><p>{busy === 'loading' ? 'Reading pages locally…' : `${progress}% complete`}</p></div>{busy !== 'loading' && <div className="progress-track"><span style={{ width: `${progress}%` }} /></div>}</div></div>}

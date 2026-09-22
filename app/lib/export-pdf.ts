@@ -56,6 +56,10 @@ function dataUrlToBytes(dataUrl: string) {
   return bytes;
 }
 
+export function pageBackgroundSize(page: { getWidth(): number; getHeight(): number }) {
+  return { width: page.getWidth(), height: page.getHeight() };
+}
+
 export function fitText(
   value: string,
   font: Pick<PDFFont, 'widthOfTextAtSize'>,
@@ -125,7 +129,8 @@ export async function generateMergedPdf(
           templateImage = await output.embedPng(dataUrlToBytes(templatePage));
           templatePageCache.set(templatePage, templateImage);
         }
-        page.drawImage(templateImage, { x: 0, y: 0, width: page.getWidth(), height: page.getHeight() });
+        const { width: backgroundWidth, height: backgroundHeight } = pageBackgroundSize(page);
+        page.drawImage(templateImage, { x: 0, y: 0, width: backgroundWidth, height: backgroundHeight });
       }
       const pageFields = fields.filter((field) => field.pageIndex === sourcePageIndex).sort((a, b) => a.layerIndex - b.layerIndex);
       for (const field of pageFields) {

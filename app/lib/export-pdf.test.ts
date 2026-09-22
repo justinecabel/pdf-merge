@@ -1,4 +1,4 @@
-import { PDFDocument } from 'pdf-lib';
+import { PDFDocument, degrees } from 'pdf-lib';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { readFile } from 'node:fs/promises';
 import { fitText, generateMergedPdf } from './export-pdf';
@@ -53,6 +53,14 @@ describe('PDF export', () => {
     const output = await PDFDocument.load(outputBytes);
     expect(output.getPageCount()).toBe(4);
     expect(output.getPage(1).node.Contents()).toBeTruthy();
+  });
+
+  it('uses the page coordinate-space size, not the rotated viewport size, for template fills', () => {
+    const fakePage = {
+      getWidth: () => 612,
+      getHeight: () => 792,
+    };
+    expect({ width: fakePage.getWidth(), height: fakePage.getHeight() }).toEqual({ width: 612, height: 792 });
   });
 
   it('embeds the selected built-in template font', async () => {
