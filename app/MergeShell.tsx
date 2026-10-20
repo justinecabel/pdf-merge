@@ -3,8 +3,8 @@
 import type { PDFDocumentProxy } from 'pdfjs-dist';
 import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import {
-  ArrowLeft, ArrowRight, Check, Copy, FileText, ImageIcon,
-  GripVertical, Hand, Layers3, Minus, Plus, Printer, RotateCcw, SlidersHorizontal, Trash2, Type, X,
+  ArrowLeft, ArrowRight, Check, Copy, Download, FileText, ImageIcon,
+  GripVertical, Hand, Layers3, Minus, Plus, RotateCcw, SlidersHorizontal, Trash2, Type, X,
 } from 'lucide-react';
 import type { KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent, RefObject } from 'react';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
@@ -249,7 +249,7 @@ export default function MergeShell() {
   const [layerDropTarget, setLayerDropTarget] = useState<string | null>(null);
   const [nameDraft, setNameDraft] = useState('');
   const [error, setError] = useState('');
-  const [busy, setBusy] = useState<'loading' | 'printing' | null>(null);
+  const [busy, setBusy] = useState<'loading' | 'exporting' | null>(null);
   const [progress, setProgress] = useState(0);
   const zoomRef = useRef(zoom);
   const zoomAnchorRef = useRef<{ x: number; y: number; contentX: number; contentY: number; scale: number } | null>(null);
@@ -262,6 +262,7 @@ export default function MergeShell() {
 
   const selected = useMemo(() => fields.find((field) => field.id === selectedId) ?? null, [fields, selectedId]);
   const selectedFields = useMemo(() => fields.filter((field) => selectedIds.includes(field.id)), [fields, selectedIds]);
+  const currentFields = useMemo(() => fields.filter((field) => field.pageIndex === currentPage), [fields, currentPage]);
   const hasSession = Boolean(pdfDoc);
   const activeReviewCopyIndex = Math.min(reviewCopyIndex, Math.max(rows.length - 1, 0));
   const activeReviewRow = rows[activeReviewCopyIndex] ?? null;
@@ -848,22 +849,16 @@ export default function MergeShell() {
 
   const moveReviewCopy = (direction: -1 | 1) => setReviewCopyIndex((copy) => Math.max(0, Math.min(rows.length - 1, copy + direction)));
 
-  const createPrintOutput = async () => {
+  const downloadMergedPdf = async () => {
     if (!pdfBytes || !fields.length || !rows.length) return;
-    const printTarget = window.open('about:blank', '_blank');
-    if (!printTarget) {
-      setError('Allow pop-ups to open the printable PDF.');
-      return;
-    }
-    setBusy('printing'); setProgress(0); setError('');
+    setBusy('exporting'); setProgress(0); setError('');
     try {
-      const { generateMergedPdf, openPrintablePdf } = await import('./lib/export-pdf');
+      const { generateMergedPdf, downloadPdf } = await import('./lib/export-pdf');
       const renderedTemplatePages = await renderTemplatePages();
       const bytes = await generateMergedPdf(pdfBytes, fields, rows, geometries, ({ percent }) => setProgress(percent), customFonts, renderedTemplatePages);
-      openPrintablePdf(bytes, printTarget);
+      downloadPdf(bytes, 'merged.pdf');
     } catch (caught) {
-      printTarget?.close();
-      setError(caught instanceof Error ? caught.message : 'The printable PDF could not be created.');
+      setError(caught instanceof Error ? caught.message : 'The PDF could not be created.');
     } finally { setBusy(null); }
   };
 
@@ -1070,12 +1065,12 @@ export default function MergeShell() {
           <button className="button" disabled={!pdfDoc || !fields.length || Boolean(busy)} onClick={() => addRowAndFocus()}><Plus size={14} /> Add row</button>
         </div>
         {dataTable}
-        <div className="workflow-bottom-dock"><div className="workflow-bottom-dock-content"><a href={workflowHref('/')} onClick={(event) => { event.preventDefault(); navigate('/'); }} className="button"><ArrowLeft size={14} /> Template</a><a href={workflowHref('/review')} onClick={(event) => { event.preventDefault(); navigate('/review'); }} className="button button-dark">Review print <ArrowRight size={14} /></a></div></div>
+        <div className="workflow-bottom-dock"><div className="workflow-bottom-dock-content"><a href={workflowHref('/')} onClick={(event) => { event.preventDefault(); navigate('/'); }} className="button"><ArrowLeft size={14} /> Template</a><a href={workflowHref('/review')} onClick={(event) => { event.preventDefault(); navigate('/review'); }} className="button button-dark">Review PDF <ArrowRight size={14} /></a></div></div>
       </section>}
 
       {view === 'review' && <section className="workflow-page review-workflow-page">
-        <div className="workflow-page-heading"><div><p className="eyebrow">Step 3 of 3</p><h1>Review and print</h1><p>Confirm the batch size and field placement before printing the combined PDF.</p></div></div>
-        {!pdfDoc || !fields.length ? emptyWorkflow('Nothing to review yet', 'Complete the Template and Data steps before printing.') : <>
+        <div className="workflow-page-heading"><div><p className="eyebrow">Step 3 of 3</p><h1>Review and download</h1><p>Confirm the batch size and field placement before downloading the combined PDF.</p></div></div>
+        {!pdfDoc || !fields.length ? emptyWorkflow('Nothing to review yet', 'Complete the Template and Data steps before downloading.') : <>
           <section className="review-page-panel" aria-label="Page preview">
             <div className="review-page-toolbar">
               <div><p className="eyebrow">Copy preview</p><h2>Copy {activeReviewCopyIndex + 1} of {rows.length} · All {pdfDoc.numPages} pages</h2></div>
@@ -1084,10 +1079,10 @@ export default function MergeShell() {
             <div className="review-page-canvas"><ReviewPagePreview document={pdfDoc} fields={fields} row={activeReviewRow} customFonts={customFonts} /></div>
           </section>
         </>}
-        <div className="workflow-bottom-dock"><div className="workflow-bottom-dock-content"><a href={workflowHref('/data')} onClick={(event) => { event.preventDefault(); navigate('/data'); }} className="button"><ArrowLeft size={14} /> Merge data</a>{pdfDoc && fields.length && <div className="review-bottom-actions"><button className="button button-dark" onClick={() => void createPrintOutput()} disabled={!rows.length || Boolean(busy)}><Printer size={14} /> Print</button></div>}</div></div>
+        <div className="workflow-bottom-dock"><div className="workflow-bottom-dock-content"><a href={workflowHref('/data')} onClick={(event) => { event.preventDefault(); navigate('/data'); }} className="button"><ArrowLeft size={14} /> Merge data</a>{pdfDoc && fields.length && <div className="review-bottom-actions"><button className="button button-dark" onClick={() => void downloadMergedPdf()} disabled={!rows.length || Boolean(busy)}><Download size={14} /> Download PDF</button></div>}</div></div>
       </section>}
 
-      {busy && <div className="busy-overlay" role="status" aria-live="polite"><div className="busy-card"><span className="busy-mark">{busy === 'loading' ? <FileText size={18} /> : <Check size={18} />}</span><div><strong>{busy === 'loading' ? 'Opening PDF' : busy === 'printing' ? 'Preparing print copy' : 'Creating PDF'}</strong><p>{busy === 'loading' ? 'Reading pages locally…' : `${progress}% complete`}</p></div>{busy !== 'loading' && <div className="progress-track"><span style={{ width: `${progress}%` }} /></div>}</div></div>}
+      {busy && <div className="busy-overlay" role="status" aria-live="polite"><div className="busy-card"><span className="busy-mark">{busy === 'loading' ? <FileText size={18} /> : <Check size={18} />}</span><div><strong>{busy === 'loading' ? 'Opening PDF' : 'Creating PDF'}</strong><p>{busy === 'loading' ? 'Reading pages locally…' : `${progress}% complete`}</p></div>{busy !== 'loading' && <div className="progress-track"><span style={{ width: `${progress}%` }} /></div>}</div></div>}
     </main>
   );
 }

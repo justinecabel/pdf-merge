@@ -6,6 +6,7 @@ const basePath = process.env.NEXT_PUBLIC_BASE_PATH ?? '';
 
 export default defineConfig({
   base: basePath ? `${basePath}/` : '/',
+  publicDir: 'public',
   css: { postcss: { plugins: [tailwindcss()] } },
   plugins: [vinext()],
 });

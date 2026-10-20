@@ -11,6 +11,13 @@
 # testing
 /coverage
 
+# local scratch files and caches
+/.tmp/
+/tmp/
+/temp/
+/.cache/
+/.vite/
+
 # next.js
 /.next/
 /.vinext/
